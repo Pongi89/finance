@@ -266,6 +266,41 @@
       .nav-tab { padding: 5px 7px; font-size: 11px; }
       .balance-header { grid-template-columns: 1fr; }
     }
+    /* Стили для сортируемых заголовков */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 20px !important;
+  transition: color 0.15s;
+}
+
+th.sortable:hover {
+  color: var(--accent);
+}
+
+th.sortable::after {
+  content: '↕';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  opacity: 0.3;
+  color: var(--text2);
+}
+
+th.sortable.sorted-asc::after {
+  content: '▲';
+  opacity: 1;
+  color: var(--accent);
+}
+
+th.sortable.sorted-desc::after {
+  content: '▼';
+  opacity: 1;
+  color: var(--accent);
+}
   </style>
 </head>
 <body>
@@ -1286,88 +1321,191 @@ function renderYearTable() {
   renderYearSection('income', 'year-income-container');
 }
 
+// ============================================================
+// ГОД - ТАБЛИЦА С СОРТИРОВКОЙ
+// ============================================================
+
+// Глобальная переменная для хранения состояния сортировки
+const yearSortState = { key: null, asc: true, type: 'expense' };
+
 function renderYearSection(type, containerId) {
-  const container=document.getElementById(containerId);
-  const yearTx=S.transactions.filter(t=>t.type===type&&t.date.startsWith(String(S.viewYear)));
-  if(!yearTx.length){container.innerHTML=`<div class="empty">Нет данных за ${S.viewYear}</div>`;return;}
+  const container = document.getElementById(containerId);
+  const year = S.viewYear;
+  const yearStr = String(year);
+  
+  // --- Фильтруем транзакции ---
+  let txs = S.transactions.filter(t => t.type === type && t.date.startsWith(yearStr));
+  if (!txs.length) {
+    container.innerHTML = `<div class="empty">Нет данных за ${year} год</div>`;
+    return;
+  }
 
-  // данные прошлого года для Δ%
-  const prevYear=S.viewYear-1;
+  // --- Данные прошлого года ---
+  const prevYear = year - 1;
+  const monthsPresent = [...new Set(txs.map(t => parseInt(t.date.substring(5, 7))))].sort((a, b) => a - b);
+  const prevTxs = S.transactions.filter(t =>
+    t.type === type &&
+    t.date.startsWith(String(prevYear)) &&
+    (monthsPresent.length === 12 || monthsPresent.includes(parseInt(t.date.substring(5, 7))))
+  );
 
-  const monthsPresent=[...new Set(yearTx.map(t=>parseInt(t.date.substring(5,7))))].sort((a,b)=>a-b);
+  // --- Агрегация данных ---
+  const catTotals = {};
+  txs.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+  const categories = Object.keys(catTotals);
 
-  // прошлый год — только те же месяцы, что есть в текущем (для честного сравнения)
-  const prevTx=S.transactions.filter(t=>t.type===type&&t.date.startsWith(String(prevYear))
-    && (monthsPresent.length===12 || monthsPresent.includes(parseInt(t.date.substring(5,7)))));
-  const prevCatTotals={};
-  prevTx.forEach(t=>{prevCatTotals[t.category]=(prevCatTotals[t.category]||0)+t.amount;});
-  const cats=[...new Set(yearTx.map(t=>t.category))].sort();
-  const idx={};
-  yearTx.forEach(t=>{const m=parseInt(t.date.substring(5,7));if(!idx[m])idx[m]={};idx[m][t.category]=(idx[m][t.category]||0)+t.amount;});
-  const catTotals={};
-  cats.forEach(c=>{catTotals[c]=yearTx.filter(t=>t.category===c).reduce((s,t)=>s+t.amount,0);});
-  const monthTotals={};
-  monthsPresent.forEach(m=>{monthTotals[m]=Object.values(idx[m]||{}).reduce((s,v)=>s+v,0);});
-  const grandTotal=yearTx.reduce((s,t)=>s+t.amount,0);
-  const prevGrandTotal=prevTx.reduce((s,t)=>s+t.amount,0);
-  const prevGrandAvg=prevGrandTotal/(monthsPresent.length||1);
+  const monthData = {};
+  txs.forEach(t => {
+    const m = parseInt(t.date.substring(5, 7));
+    if (!monthData[m]) monthData[m] = {};
+    monthData[m][t.category] = (monthData[m][t.category] || 0) + t.amount;
+  });
 
-  let html=`<div class="year-table-wrap"><table class="year-table"><thead><tr>
-    <th>Категория</th>
-    <th>Итого</th><th>Среднее</th><th>Доля</th><th>Ср. ${prevYear}</th><th>Δ%</th>
-    ${monthsPresent.map(m=>`<th>${MONTH_NAMES[m-1]}</th>`).join('')}
-  </tr></thead><tbody>`;
+  const monthTotals = {};
+  monthsPresent.forEach(m => {
+    monthTotals[m] = Object.values(monthData[m] || {}).reduce((s, v) => s + v, 0);
+  });
+  const grandTotal = txs.reduce((s, t) => s + t.amount, 0);
+  const prevGrandTotal = prevTxs.reduce((s, t) => s + t.amount, 0);
+  const prevGrandAvg = monthsPresent.length ? prevGrandTotal / monthsPresent.length : 0;
 
-  cats.forEach(c=>{
-    const total=catTotals[c];
-    const avg=total/monthsPresent.length;
-    const share=grandTotal?(total/grandTotal*100).toFixed(1):0;
+  // --- Формируем массив строк для таблицы ---
+  let rows = categories.map(cat => {
+    const total = catTotals[cat] || 0;
+    const avg = monthsPresent.length ? total / monthsPresent.length : 0;
+    const share = grandTotal ? (total / grandTotal * 100) : 0;
 
-    const prevCatTotal = prevCatTotals[c] || 0;
-    const prevCatAvgVal = prevCatTotal > 0 ? prevCatTotal / monthsPresent.length : 0;
-
-    let prevAvgStr = prevCatAvgVal > 0 ? fmt(prevCatAvgVal) : '—';
-    let delta='—';
-    let deltaStyle='color:var(--text2)';
-    if(prevCatAvgVal > 0){
-      const d=((avg-prevCatAvgVal)/prevCatAvgVal*100);
-      const sign=d>0?'+':'';
-      delta=`${sign}${d.toFixed(1)}%`;
-      if(type==='expense') deltaStyle=d>0?'color:var(--expense)':'color:var(--income)';
-      else deltaStyle=d>0?'color:var(--income)':'color:var(--expense)';
+    const prevCatTotal = prevTxs.filter(t => t.category === cat).reduce((s, t) => s + t.amount, 0);
+    const prevCatAvg = monthsPresent.length ? prevCatTotal / monthsPresent.length : 0;
+    let delta = null;
+    if (prevCatAvg > 0) {
+      delta = ((avg - prevCatAvg) / prevCatAvg * 100);
     }
 
-    html+=`<tr><td>${c}</td>
+    const monthValues = monthsPresent.map(m => (monthData[m] || {})[cat] || null);
+
+    return {
+      category: cat,
+      total: total,
+      avg: avg,
+      share: share,
+      prevAvg: prevCatAvg,
+      delta: delta,
+      monthValues: monthValues,
+      _sortTotal: total,
+      _sortAvg: avg,
+      _sortShare: share,
+      _sortPrevAvg: prevCatAvg,
+      _sortDelta: delta === null ? -Infinity : delta,
+    };
+  });
+
+  // --- СОРТИРОВКА (применяем текущее состояние) ---
+  const sortKey = yearSortState.key;
+  const sortAsc = yearSortState.asc;
+  const currentType = yearSortState.type;
+
+  if (currentType === type && sortKey) {
+    const sortMap = {
+      'total': '_sortTotal',
+      'avg': '_sortAvg',
+      'share': '_sortShare',
+      'prevAvg': '_sortPrevAvg',
+      'delta': '_sortDelta',
+    };
+    const field = sortMap[sortKey] || '_sortTotal';
+    rows.sort((a, b) => {
+      let va = a[field] ?? 0;
+      let vb = b[field] ?? 0;
+      return sortAsc ? va - vb : vb - va;
+    });
+  }
+
+  // --- Строим HTML ---
+  let html = `<div class="year-table-wrap"><table class="year-table"><thead><tr>
+    <th>Категория</th>
+    <th data-sort="total" class="sortable ${sortKey === 'total' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Итого</th>
+    <th data-sort="avg" class="sortable ${sortKey === 'avg' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Среднее</th>
+    <th data-sort="share" class="sortable ${sortKey === 'share' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Доля</th>
+    <th data-sort="prevAvg" class="sortable ${sortKey === 'prevAvg' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Ср. ${prevYear}</th>
+    <th data-sort="delta" class="sortable ${sortKey === 'delta' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Δ%</th>
+    ${monthsPresent.map(m => `<th>${MONTH_NAMES[m-1]}</th>`).join('')}
+  </tr></thead><tbody>`;
+
+  rows.forEach(row => {
+    const total = row.total;
+    const avg = row.avg;
+    const share = row.share;
+    const prevAvg = row.prevAvg;
+    const delta = row.delta;
+
+    let prevAvgStr = prevAvg > 0 ? fmt(prevAvg) : '—';
+    let deltaStr = '—';
+    let deltaStyle = 'color:var(--text2)';
+    if (delta !== null) {
+      const sign = delta > 0 ? '+' : '';
+      deltaStr = `${sign}${delta.toFixed(1)}%`;
+      if (type === 'expense') {
+        deltaStyle = delta > 0 ? 'color:var(--expense)' : 'color:var(--income)';
+      } else {
+        deltaStyle = delta > 0 ? 'color:var(--income)' : 'color:var(--expense)';
+      }
+    }
+
+    html += `<tr><td>${row.category}</td>
       <td class="total-col">${fmt(total)}</td>
       <td class="avg-col">${fmt(avg)}</td>
-      <td class="share-col">${share}%</td>
+      <td class="share-col">${share.toFixed(1)}%</td>
       <td class="avg-col">${prevAvgStr}</td>
-      <td style="font-size:12px;font-weight:600;${deltaStyle}">${delta}</td>
-      ${monthsPresent.map(m=>{const v=(idx[m]||{})[c];return v?`<td>${fmt(v)}</td>`:`<td style="color:var(--border)">—</td>`;}).join('')}
+      <td style="font-size:12px;font-weight:600;${deltaStyle}">${deltaStr}</td>
+      ${row.monthValues.map(v => v !== null && v !== 0 ? `<td>${fmt(v)}</td>` : `<td style="color:var(--border)">—</td>`).join('')}
     </tr>`;
   });
 
-  let totalDelta='—';
-  let totalDeltaStyle='color:var(--text2)';
-  if(prevGrandAvg){
-    const avgCurrent=grandTotal/monthsPresent.length;
-    const d=((avgCurrent-prevGrandAvg)/prevGrandAvg*100);
-    const sign=d>0?'+':'';
-    totalDelta=`${sign}${d.toFixed(1)}%`;
-    if(type==='expense') totalDeltaStyle=d>0?'color:var(--expense)':'color:var(--income)';
-    else totalDeltaStyle=d>0?'color:var(--income)':'color:var(--expense)';
+  // --- Итоговая строка ---
+  let totalDeltaStr = '—';
+  let totalDeltaStyle = 'color:var(--text2)';
+  const avgCurrent = monthsPresent.length ? grandTotal / monthsPresent.length : 0;
+  if (prevGrandAvg > 0) {
+    const d = ((avgCurrent - prevGrandAvg) / prevGrandAvg * 100);
+    const sign = d > 0 ? '+' : '';
+    totalDeltaStr = `${sign}${d.toFixed(1)}%`;
+    if (type === 'expense') {
+      totalDeltaStyle = d > 0 ? 'color:var(--expense)' : 'color:var(--income)';
+    } else {
+      totalDeltaStyle = d > 0 ? 'color:var(--income)' : 'color:var(--expense)';
+    }
   }
 
-  const prevGrandAvgVal = prevGrandTotal / (monthsPresent.length || 1);
-  html+=`<tr class="sep"><td>ИТОГО</td>
+  const totalAvg = monthsPresent.length ? grandTotal / monthsPresent.length : 0;
+  html += `<tr class="sep"><td>ИТОГО</td>
     <td class="total-col">${fmt(grandTotal)}</td>
-    <td class="avg-col">${fmt(grandTotal/monthsPresent.length)}</td>
+    <td class="avg-col">${fmt(totalAvg)}</td>
     <td></td>
-    <td class="avg-col">${prevGrandAvgVal>0?fmt(prevGrandAvgVal):'—'}</td>
-    <td style="font-size:12px;font-weight:700;${totalDeltaStyle}">${totalDelta}</td>
-    ${monthsPresent.map(m=>`<td>${fmt(monthTotals[m])}</td>`).join('')}
+    <td class="avg-col">${prevGrandAvg > 0 ? fmt(prevGrandAvg) : '—'}</td>
+    <td style="font-size:12px;font-weight:700;${totalDeltaStyle}">${totalDeltaStr}</td>
+    ${monthsPresent.map(m => `<td>${fmt(monthTotals[m])}</td>`).join('')}
   </tr></tbody></table></div>`;
-  container.innerHTML=html;
+
+  container.innerHTML = html;
+
+  // --- Вешаем обработчики кликов на сортируемые заголовки ---
+  container.querySelectorAll('th.sortable').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.title = 'Нажмите для сортировки';
+    th.addEventListener('click', function() {
+      const key = this.dataset.sort;
+      if (yearSortState.key === key && yearSortState.type === type) {
+        yearSortState.asc = !yearSortState.asc;
+      } else {
+        yearSortState.key = key;
+        yearSortState.asc = true;
+        yearSortState.type = type;
+      }
+      renderYearSection('expense', 'year-expense-container');
+      renderYearSection('income', 'year-income-container');
+    });
+  });
 }
 
 // ============================================================
