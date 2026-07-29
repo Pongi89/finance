@@ -1639,7 +1639,7 @@ async function submitTransaction() {
   if(!amountRaw)return showToast('Укажите сумму','error');
   let amount;
   try { amount=Function('"use strict";return ('+amountRaw.replace(',','.').replace(/[^0-9+\-*/().]/g,'')+')')(); } catch(e){return showToast('Неверная сумма','error');}
-  if(!amount||amount<=0)return showToast('Сумма должна быть больше 0','error');
+  if(!amount||amount===0)return showToast('Сумма не может быть равна 0','error');
   if(!S.selectedCategory)return showToast('Выберите категорию','error');
   try {
     await apiPost({action:'addTransaction',date,type:S.currentType,category:S.selectedCategory,amount,comment});
