@@ -439,7 +439,7 @@ th.sortable.sorted-desc::after {
       </div>
       <div class="form-group">
         <div class="form-label">Сумма</div>
-        <input type="text" class="form-input" id="input-amount" placeholder="0 или 43+43+43" oninput="calcAmount()">
+        <input type="text" class="form-input" id="input-amount" placeholder="0 или 43+43+43" oninput="calcAmount()" inputmode="decimal" autocomplete="off">
         <div class="calc-hint" id="calc-hint"></div>
       </div>
       <div class="form-group full">
@@ -935,7 +935,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const realUrl = localStorage.getItem('real_api_url');
   if (realUrl) document.getElementById('settings-url').value = realUrl;
   updateDemoBanner();
-  showPage('dashboard');
+  // Определяем, телефон ли это
+const isPhone = /Android|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile/i.test(navigator.userAgent);
+if (isPhone) {
+  showPage('add');  // На телефоне открываем вкладку "Добавить"
+} else {
+  showPage('dashboard');  // На компьютере открываем "Месяц"
+}
   loadAll();
   if (!localStorage.getItem('tour_seen')) {
     setTimeout(showTour, 500);
