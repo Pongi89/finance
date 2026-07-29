@@ -1572,7 +1572,7 @@ function renderDynamics() {
     const monthEnd=`${ky}-${km}-${pad(new Date(parseInt(ky),parseInt(km),0).getDate())}`;
     const cutoff=monthEnd<today?monthEnd:today;
     const cap=calcCapital(cutoff);
-    return cap !== null && cap !== undefined ? cap : null;
+    return cap;
   });
 
   const ctx=document.getElementById('chart-dynamics').getContext('2d');
