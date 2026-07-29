@@ -1398,6 +1398,7 @@ function renderYearSection(type, containerId) {
       prevAvg: prevCatAvg,
       delta: delta,
       monthValues: monthValues,
+      _sortCategory: cat.toLowerCase(),  // ← НОВОЕ поле для сортировки по алфавиту
       _sortTotal: total,
       _sortAvg: avg,
       _sortShare: share,
@@ -1413,6 +1414,7 @@ function renderYearSection(type, containerId) {
 
   if (currentType === type && sortKey) {
     const sortMap = {
+      'category': '_sortCategory',
       'total': '_sortTotal',
       'avg': '_sortAvg',
       'share': '_sortShare',
@@ -1421,15 +1423,22 @@ function renderYearSection(type, containerId) {
     };
     const field = sortMap[sortKey] || '_sortTotal';
     rows.sort((a, b) => {
-      let va = a[field] ?? 0;
-      let vb = b[field] ?? 0;
-      return sortAsc ? va - vb : vb - va;
-    });
+  let va = a[field] ?? 0;
+  let vb = b[field] ?? 0;
+  
+  // Если сортируем по категории — сравниваем как строки (по алфавиту)
+  if (field === '_sortCategory') {
+    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+  }
+  
+  // Для числовых полей — сравниваем как числа
+  return sortAsc ? va - vb : vb - va;
+});
   }
 
   // --- Строим HTML ---
   let html = `<div class="year-table-wrap"><table class="year-table"><thead><tr>
-    <th>Категория</th>
+    <th data-sort="category" class="sortable ${sortKey === 'category' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Категория</th>
     <th data-sort="total" class="sortable ${sortKey === 'total' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Итого</th>
     <th data-sort="avg" class="sortable ${sortKey === 'avg' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Среднее</th>
     <th data-sort="share" class="sortable ${sortKey === 'share' ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : ''}">Доля</th>
