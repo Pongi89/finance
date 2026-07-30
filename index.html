@@ -2820,30 +2820,27 @@ function findRecords(year, allYears) {
   const records = [];
   const yearStr = String(year);
   
-  // Все категории расходов за этот год и прошлый
   const expensesThisYear = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(yearStr));
   const expensesPrevYear = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(String(year - 1)));
   
-  // Суммы по категориям за этот год
   const catThis = {};
   expensesThisYear.forEach(t => {
     const cat = t.category || 'Без категории';
-    catThis[cat] = (catThis[cat] || 0) + Math.abs(t.amount);
+    catThis[cat] = (catThis[cat] || 0) + t.amount;   // ← БЕЗ Math.abs
   });
   
-  // Суммы по категориям за прошлый год
   const catPrev = {};
   expensesPrevYear.forEach(t => {
     const cat = t.category || 'Без категории';
-    catPrev[cat] = (catPrev[cat] || 0) + Math.abs(t.amount);
+    catPrev[cat] = (catPrev[cat] || 0) + t.amount;   // ← БЕЗ Math.abs
   });
   
-  // --- 1. Самое большое снижение расходов (в процентах) ---
+  // --- 1. Самое большое снижение расходов ---
   const reductions = [];
   Object.keys(catThis).forEach(cat => {
-    if (catPrev[cat] && catPrev[cat] > 1000) { // только если в прошлом году было > 1000 ₽
+    if (catPrev[cat] && catPrev[cat] > 1000) {
       const change = ((catThis[cat] - catPrev[cat]) / catPrev[cat]) * 100;
-      if (change < -10) { // снижение больше чем на 10%
+      if (change < -10) {
         reductions.push({ category: cat, change: change, thisYear: catThis[cat], prevYear: catPrev[cat] });
       }
     }
@@ -2858,7 +2855,7 @@ function findRecords(year, allYears) {
     });
   }
 
-  // --- 2. Самый большой рост расходов (в процентах) ---
+  // --- 2. Самый большой рост расходов ---
   const growths = [];
   Object.keys(catThis).forEach(cat => {
     if (catPrev[cat] && catPrev[cat] > 1000) {
@@ -2878,31 +2875,11 @@ function findRecords(year, allYears) {
     });
   }
 
-  // --- 3. Самая стабильная категория (минимальное изменение) ---
-  const stables = [];
-  Object.keys(catThis).forEach(cat => {
-    if (catPrev[cat] && catPrev[cat] > 1000 && catThis[cat] > 1000) {
-      const change = Math.abs(((catThis[cat] - catPrev[cat]) / catPrev[cat]) * 100);
-      if (change < 5) {
-        stables.push({ category: cat, change: change });
-      }
-    }
-  });
-  stables.sort((a, b) => a.change - b.change);
-  if (stables.length > 0) {
-    const best = stables[0];
-    records.push({
-      label: '🏆 Самая стабильная категория',
-      value: `${best.category}`,
-      context: `изменение менее ${best.change.toFixed(0)}% к ${year - 1}`
-    });
-  }
-
-  // --- 4. Рекорд дохода (если больше чем в прошлом году) ---
+  // --- 3. Доходы выросли ---
   const incomeThis = S.transactions.filter(t => t.type === 'income' && t.date.startsWith(yearStr))
-    .reduce((s, t) => s + t.amount, 0);
+    .reduce((s, t) => s + t.amount, 0);   // ← БЕЗ Math.abs
   const incomePrev = S.transactions.filter(t => t.type === 'income' && t.date.startsWith(String(year - 1)))
-    .reduce((s, t) => s + t.amount, 0);
+    .reduce((s, t) => s + t.amount, 0);   // ← БЕЗ Math.abs
   
   if (incomeThis > incomePrev && incomePrev > 0) {
     const growth = ((incomeThis - incomePrev) / incomePrev) * 100;
@@ -2913,25 +2890,20 @@ function findRecords(year, allYears) {
     });
   }
 
-// --- 5. Расходы снизились (общий итог) ---
-const expenseThis = S.transactions
-  .filter(t => t.type === 'expense' && t.date.startsWith(yearStr))
-  .reduce((s, t) => s + Math.abs(t.amount), 0);
+  // --- 4. Расходы снизились ---
+  const expenseThis = expensesThisYear.reduce((s, t) => s + t.amount, 0);   // ← БЕЗ Math.abs
+  const expensePrev = expensesPrevYear.reduce((s, t) => s + t.amount, 0);   // ← БЕЗ Math.abs
 
-const expensePrev = S.transactions
-  .filter(t => t.type === 'expense' && t.date.startsWith(String(year - 1)))
-  .reduce((s, t) => s + Math.abs(t.amount), 0);
+  if (expenseThis < expensePrev && expensePrev > 0) {
+    const decrease = ((expensePrev - expenseThis) / expensePrev) * 100;
+    records.push({
+      label: '🏆 Расходы снизились',
+      value: fmt(expenseThis),
+      context: `(▼ ${decrease.toFixed(0)}% к ${year - 1})`
+    });
+  }
 
-if (expenseThis < expensePrev && expensePrev > 0) {
-  const decrease = ((expensePrev - expenseThis) / expensePrev) * 100;
-  records.push({
-    label: '🏆 Расходы снизились',
-    value: fmt(expenseThis) + ' (текущий год)',
-    context: `(▼ ${decrease.toFixed(0)}% к ${year - 1})`
-  });
-}
-
-  // --- 6. Норма сбережений улучшилась ---
+  // --- 5. Норма сбережений улучшилась ---
   const savingsRateThis = incomeThis > 0 ? ((incomeThis - expenseThis) / incomeThis * 100) : 0;
   const savingsRatePrev = incomePrev > 0 ? ((incomePrev - expensePrev) / incomePrev * 100) : 0;
   
@@ -2944,7 +2916,6 @@ if (expenseThis < expensePrev && expensePrev > 0) {
     });
   }
 
-  // Если записей нет — показываем сообщение
   if (records.length === 0) {
     records.push({
       label: '📊 Без значительных изменений',
@@ -2955,7 +2926,7 @@ if (expenseThis < expensePrev && expensePrev > 0) {
 
   return records;
 }
-
+  
 function generateInsights(income, expense, incomeChange, expenseChange, savingsRate, prevSavingsRate, year) {
   const insights = [];
   
