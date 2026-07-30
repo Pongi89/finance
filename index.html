@@ -2850,72 +2850,137 @@ function formatDate(dateStr) {
 
 function findRecords(year, allYears) {
   const records = [];
-  const yearData = S.transactions.filter(t => t.date.startsWith(String(year)));
-  const totalIncome = yearData.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpense = yearData.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const savings = totalIncome - totalExpense;
-
-  // Капитал на конец года
-  const lastDay = `${year}-12-31`;
-  const capital = calcCapital(lastDay);
-
-  // Рекорд капитала
-  const allCapital = allYears.map(y => {
-    const d = `${y}-12-31`;
-    return { year: y, capital: calcCapital(d) };
-  }).filter(c => c.capital > 0);
+  const yearStr = String(year);
   
-  if (allCapital.length > 0) {
-    const best = allCapital.reduce((a, b) => a.capital > b.capital ? a : b);
-    if (best.year === year) {
-      records.push({
-        label: 'Самый высокий капитал за всё время',
-        value: fmt(best.capital),
-        context: `(лучший результат среди ${allCapital.length} лет)`
-      });
-    }
-  }
-
-  // Рекорд дохода
-  const monthlyIncome = {};
-  yearData.forEach(t => {
-    if (t.type === 'income') {
-      const month = t.date.substring(0, 7);
-      monthlyIncome[month] = (monthlyIncome[month] || 0) + t.amount;
+  // Все категории расходов за этот год и прошлый
+  const expensesThisYear = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(yearStr));
+  const expensesPrevYear = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(String(year - 1)));
+  
+  // Суммы по категориям за этот год
+  const catThis = {};
+  expensesThisYear.forEach(t => {
+    const cat = t.category || 'Без категории';
+    catThis[cat] = (catThis[cat] || 0) + Math.abs(t.amount);
+  });
+  
+  // Суммы по категориям за прошлый год
+  const catPrev = {};
+  expensesPrevYear.forEach(t => {
+    const cat = t.category || 'Без категории';
+    catPrev[cat] = (catPrev[cat] || 0) + Math.abs(t.amount);
+  });
+  
+  // --- 1. Самое большое снижение расходов (в процентах) ---
+  const reductions = [];
+  Object.keys(catThis).forEach(cat => {
+    if (catPrev[cat] && catPrev[cat] > 1000) { // только если в прошлом году было > 1000 ₽
+      const change = ((catThis[cat] - catPrev[cat]) / catPrev[cat]) * 100;
+      if (change < -10) { // снижение больше чем на 10%
+        reductions.push({ category: cat, change: change, thisYear: catThis[cat], prevYear: catPrev[cat] });
+      }
     }
   });
-  const maxMonthlyIncome = Object.entries(monthlyIncome).sort((a, b) => b[1] - a[1])[0];
-  if (maxMonthlyIncome) {
+  reductions.sort((a, b) => a.change - b.change);
+  if (reductions.length > 0) {
+    const best = reductions[0];
     records.push({
-      label: 'Самый большой ежемесячный доход',
-      value: fmt(maxMonthlyIncome[1]),
-      context: `(${formatMonth(maxMonthlyIncome[0])})`
+      label: '🏆 Самое большое снижение расходов',
+      value: `${best.category}`,
+      context: `${fmt(best.thisYear)} (▼ ${Math.abs(best.change).toFixed(0)}% к ${year - 1})`
     });
   }
 
-  // Рекорд экономии в категории (за последние 3 года)
-  const last3Years = allYears.filter(y => y >= year - 2 && y < year);
-  const categoryLowest = {};
-  last3Years.forEach(y => {
-    const txs = S.transactions.filter(t => t.date.startsWith(String(y)) && t.type === 'expense');
-    txs.forEach(t => {
-      const cat = t.category || 'Без категории';
-      if (!categoryLowest[cat]) categoryLowest[cat] = [];
-      categoryLowest[cat].push(Math.abs(t.amount));
-    });
-  });
-  Object.keys(categoryLowest).forEach(cat => {
-    const minPrev = Math.min(...categoryLowest[cat]);
-    const currentYearExpenses = S.transactions.filter(t => t.date.startsWith(String(year)) && t.type === 'expense' && t.category === cat);
-    const currentMin = currentYearExpenses.length > 0 ? Math.min(...currentYearExpenses.map(t => Math.abs(t.amount))) : 0;
-    if (currentMin > 0 && currentMin < minPrev) {
-      records.push({
-        label: `Самые низкие расходы в категории "${cat}" за последние 3 года`,
-        value: fmt(currentMin),
-        context: `(было ${fmt(minPrev)} в прошлые годы)`
-      });
+  // --- 2. Самый большой рост расходов (в процентах) ---
+  const growths = [];
+  Object.keys(catThis).forEach(cat => {
+    if (catPrev[cat] && catPrev[cat] > 1000) {
+      const change = ((catThis[cat] - catPrev[cat]) / catPrev[cat]) * 100;
+      if (change > 10) {
+        growths.push({ category: cat, change: change, thisYear: catThis[cat], prevYear: catPrev[cat] });
+      }
     }
   });
+  growths.sort((a, b) => b.change - a.change);
+  if (growths.length > 0) {
+    const best = growths[0];
+    records.push({
+      label: '🏆 Самый большой рост расходов',
+      value: `${best.category}`,
+      context: `${fmt(best.thisYear)} (▲ ${best.change.toFixed(0)}% к ${year - 1})`
+    });
+  }
+
+  // --- 3. Самая стабильная категория (минимальное изменение) ---
+  const stables = [];
+  Object.keys(catThis).forEach(cat => {
+    if (catPrev[cat] && catPrev[cat] > 1000 && catThis[cat] > 1000) {
+      const change = Math.abs(((catThis[cat] - catPrev[cat]) / catPrev[cat]) * 100);
+      if (change < 5) {
+        stables.push({ category: cat, change: change });
+      }
+    }
+  });
+  stables.sort((a, b) => a.change - b.change);
+  if (stables.length > 0) {
+    const best = stables[0];
+    records.push({
+      label: '🏆 Самая стабильная категория',
+      value: `${best.category}`,
+      context: `изменение менее ${best.change.toFixed(0)}% к ${year - 1}`
+    });
+  }
+
+  // --- 4. Рекорд дохода (если больше чем в прошлом году) ---
+  const incomeThis = S.transactions.filter(t => t.type === 'income' && t.date.startsWith(yearStr))
+    .reduce((s, t) => s + t.amount, 0);
+  const incomePrev = S.transactions.filter(t => t.type === 'income' && t.date.startsWith(String(year - 1)))
+    .reduce((s, t) => s + t.amount, 0);
+  
+  if (incomeThis > incomePrev && incomePrev > 0) {
+    const growth = ((incomeThis - incomePrev) / incomePrev) * 100;
+    records.push({
+      label: '🏆 Доходы выросли',
+      value: fmt(incomeThis),
+      context: `(▲ ${growth.toFixed(0)}% к ${year - 1})`
+    });
+  }
+
+  // --- 5. Расходы снизились (общий итог) ---
+  const expenseThis = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(yearStr))
+    .reduce((s, t) => s + Math.abs(t.amount), 0);
+  const expensePrev = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(String(year - 1)))
+    .reduce((s, t) => s + Math.abs(t.amount), 0);
+  
+  if (expenseThis < expensePrev && expensePrev > 0) {
+    const decrease = ((expensePrev - expenseThis) / expensePrev) * 100;
+    records.push({
+      label: '🏆 Расходы снизились',
+      value: fmt(expenseThis),
+      context: `(▼ ${decrease.toFixed(0)}% к ${year - 1})`
+    });
+  }
+
+  // --- 6. Норма сбережений улучшилась ---
+  const savingsRateThis = incomeThis > 0 ? ((incomeThis - expenseThis) / incomeThis * 100) : 0;
+  const savingsRatePrev = incomePrev > 0 ? ((incomePrev - expensePrev) / incomePrev * 100) : 0;
+  
+  if (savingsRateThis > savingsRatePrev && savingsRatePrev > 0) {
+    const improvement = savingsRateThis - savingsRatePrev;
+    records.push({
+      label: '🏆 Норма сбережений выросла',
+      value: `${savingsRateThis.toFixed(1)}%`,
+      context: `(▲ ${improvement.toFixed(1)} п.п. к ${year - 1})`
+    });
+  }
+
+  // Если записей нет — показываем сообщение
+  if (records.length === 0) {
+    records.push({
+      label: '📊 Без значительных изменений',
+      value: 'Год был стабильным',
+      context: 'Все показатели близки к прошлому году'
+    });
+  }
 
   return records;
 }
