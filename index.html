@@ -2491,6 +2491,179 @@ function showToast(msg,type='success'){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>{bar.classList.remove('show');label.classList.remove('show');},2000);
 }
+  // ============================================================
+// ГРАФИК КАТЕГОРИИ ЗА ГОД (при клике на категорию)
+// ============================================================
+
+function showCategoryYearChart(categoryName) {
+  // Создаём модальное окно
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+  `;
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  
+  const box = document.createElement('div');
+  box.style.cssText = `
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; max-width: 600px; width: 90%;
+    max-height: 80vh; overflow-y: auto;
+  `;
+  box.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h3 style="font-size:18px; margin:0; color:var(--text);">📊 ${categoryName}</h3>
+      <button onclick="this.closest('div[style]').parentElement.remove()" 
+              style="background:transparent; border:none; color:var(--text2); font-size:24px; cursor:pointer;">✕</button>
+    </div>
+    <div style="height:280px;"><canvas id="categoryChartCanvas"></canvas></div>
+  `;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  const canvas = document.getElementById('categoryChartCanvas');
+  const year = S.viewYear || new Date().getFullYear();
+  const prevYear = year - 1;
+
+  // Собираем данные по месяцам за текущий год
+  const data = Array(12).fill(0);
+  const prevData = Array(12).fill(0);
+  const totalMonths = [];
+
+  S.transactions.forEach(t => {
+    if (t.category === categoryName && t.type === 'expense') {
+      const tYear = parseInt(t.date.substring(0, 4));
+      const tMonth = parseInt(t.date.substring(5, 7));
+      if (tYear === year) {
+        data[tMonth - 1] += Math.abs(t.amount);
+        if (!totalMonths.includes(tMonth)) totalMonths.push(tMonth);
+      } else if (tYear === prevYear) {
+        prevData[tMonth - 1] += Math.abs(t.amount);
+      }
+    }
+  });
+
+  const labels = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+
+  const ctx = canvas.getContext('2d');
+  if (window._categoryChartInstance) window._categoryChartInstance.destroy();
+
+  const hasPrevData = prevData.some(v => v > 0);
+  const datasets = [{
+    label: `${year}`,
+    data: data,
+    borderColor: '#6c63ff',
+    backgroundColor: 'rgba(108, 99, 255, 0.1)',
+    fill: true,
+    tension: 0.3,
+    pointBackgroundColor: '#6c63ff',
+    pointRadius: 4,
+  }];
+
+  if (hasPrevData) {
+    datasets.push({
+      label: `${prevYear}`,
+      data: prevData,
+      borderColor: '#8892a4',
+      backgroundColor: 'rgba(136, 146, 164, 0.05)',
+      fill: false,
+      borderDash: [5, 5],
+      tension: 0.3,
+      pointBackgroundColor: '#8892a4',
+      pointRadius: 3,
+    });
+  }
+
+  const total = data.reduce((a, b) => a + b, 0);
+  const avg = totalMonths.length ? total / totalMonths.length : 0;
+
+  window._categoryChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#e2e8f0', font: { size: 12 } }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 17, 23, 0.95)',
+          titleColor: '#e2e8f0',
+          bodyColor: '#e2e8f0',
+          borderColor: '#2e3148',
+          borderWidth: 1,
+          cornerRadius: 8,
+          padding: 12,
+          callbacks: {
+            label: function(context) {
+              return context.dataset.label + ': ' + context.parsed.y.toLocaleString('ru-RU') + ' ₽';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#8892a4', font: { size: 10 } },
+          grid: { color: 'rgba(46, 49, 72, 0.3)' }
+        },
+        y: {
+          ticks: { color: '#8892a4', font: { size: 10 } },
+          grid: { color: 'rgba(46, 49, 72, 0.3)' },
+          beginAtZero: true,
+        }
+      }
+    }
+  });
+
+  // Добавляем статистику под графиком
+  const info = document.createElement('div');
+  info.style.cssText = `
+    display: flex; justify-content: space-around; margin-top: 12px; 
+    font-size: 13px; color: var(--text2); border-top: 1px solid var(--border); padding-top: 12px;
+  `;
+  info.innerHTML = `
+    <span>Всего: <b style="color:var(--text)">${total.toLocaleString('ru-RU')} ₽</b></span>
+    <span>Среднее: <b style="color:var(--text)">${avg.toFixed(0)} ₽</b></span>
+    ${totalMonths.length > 0 ? `<span>Месяцев: <b style="color:var(--text)">${totalMonths.length}</b></span>` : ''}
+  `;
+  box.appendChild(info);
+}
+
+// ============================================================
+// АВТОМАТИЧЕСКАЯ ПРИВЯЗКА КЛИКА К КАТЕГОРИЯМ В ТАБЛИЦЕ
+// ============================================================
+
+function patchCategoryClicks() {
+  document.querySelectorAll('#page-year .year-table td:first-child').forEach(el => {
+    if (!el.dataset.listener) {
+      el.dataset.listener = 'true';
+      el.style.cursor = 'pointer';
+      el.title = 'Нажмите для графика по месяцам';
+      el.addEventListener('click', function() {
+        const categoryName = this.textContent.trim();
+        if (categoryName && categoryName !== 'ИТОГО' && categoryName !== 'Категория') {
+          showCategoryYearChart(categoryName);
+        }
+      });
+    }
+  });
+}
+
+// Наблюдатель за изменениями таблицы
+const categoryClickObserver = new MutationObserver(() => {
+  patchCategoryClicks();
+});
+categoryClickObserver.observe(document.getElementById('page-year') || document.body, {
+  childList: true,
+  subtree: true
+});
+
+// Запускаем при загрузке
+setTimeout(patchCategoryClicks, 1500);
 </script>
 </body>
 </html>
