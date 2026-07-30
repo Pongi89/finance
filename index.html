@@ -545,7 +545,16 @@ th.sortable.sorted-desc::after {
   </div>
 
 </div>
-
+<!-- ===================== ДОСТИЖЕНИЯ ===================== -->
+<div class="page" id="page-achievements">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <h2 style="font-size:18px;color:var(--text);">🏆 Мои достижения</h2>
+    <button class="btn btn-ghost btn-sm" onclick="checkAndUpdateAchievements()" style="width:auto;padding:6px 16px;">🔄 Обновить</button>
+  </div>
+  <div id="achievements-content">
+    <div class="loader">Загрузка достижений...</div>
+  </div>
+</div>
 <!-- ===================== НАСТРОЙКИ ===================== -->
 <div class="page" id="page-settings">
   <div class="card">
@@ -2403,7 +2412,9 @@ function showPage(name){
   // шестерёнка — подсвечиваем отдельно
   const gear=document.querySelector('.nav-gear');
   if(gear) gear.style.color=name==='settings'?'var(--accent)':'';
-
+  if (name === 'achievements') {
+     renderAchievements();
+  }
   if(name==='balance'){renderBalance();renderAssetInputList();}
   if(name==='settings'){renderSettingsCategories();renderPositionsList();}
   if(name==='year'){
@@ -3046,6 +3057,416 @@ setTimeout(() => {
     renderYearlyReview(reviewYear);
   }
 }, 1500);
+  // ============================================================
+// ДОСТИЖЕНИЯ (ACHIEVEMENTS)
+// ============================================================
+
+async function loadAchievements() {
+  try {
+    const r = await apiGet({ action: 'getAchievements' });
+    return r.data || [];
+  } catch(e) {
+    console.error('Ошибка загрузки достижений:', e);
+    return [];
+  }
+}
+
+async function saveAchievement(id, date, value) {
+  try {
+    await apiPost({ action: 'updateAchievement', id, date, value });
+  } catch(e) {
+    console.error('Ошибка сохранения достижения:', e);
+  }
+}
+
+async function resetAchievement(id) {
+  try {
+    await apiPost({ action: 'resetAchievement', id });
+  } catch(e) {
+    console.error('Ошибка сброса достижения:', e);
+  }
+}
+
+// ============================================================
+// РАСЧЁТ ДОСТИЖЕНИЙ
+// ============================================================
+
+function calculateAchievements(transactions, assets, positions, settings) {
+  const now = new Date();
+  const today = localDateStr(now);
+  const currentYear = now.getFullYear();
+  
+  // --- 1. Обязательные расходы за последние 12 месяцев ---
+  const oneYearAgo = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
+  const oneYearAgoStr = localDateStr(oneYearAgo);
+  
+  const mandatoryNames = (settings.categories || []).filter(c => isMandatory(c)).map(c => c.name);
+  
+  const mandatoryExpenses = transactions.filter(t => 
+    t.type === 'expense' && 
+    mandatoryNames.includes(t.category) &&
+    t.date >= oneYearAgoStr &&
+    t.date <= today
+  );
+  
+  const totalMandatoryExpenses = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
+  
+  // --- 2. Целевой капитал (FAIR: 25 × годовые обязательные расходы) ---
+  const yearlyMandatory = totalMandatoryExpenses;
+  const targetCapital = yearlyMandatory * 25;
+  
+  // --- 3. Текущий капитал ---
+  const currentCapital = calcCapital(today);
+  
+  // --- 4. Прогресс FAIR ---
+  const fairProgress = targetCapital > 0 ? (currentCapital / targetCapital) * 100 : 0;
+  
+  // --- 5. Пассивы ---
+  const passivePositions = positions.filter(p => p.block === 'passive');
+  let currentPassives = 0;
+  passivePositions.forEach(p => {
+    const latest = getLatestAsset(p.id, today);
+    if (latest) currentPassives += latest.amount;
+  });
+  
+  // Максимальные пассивы за всё время
+  let maxPassives = 0;
+  passivePositions.forEach(p => {
+    const assetsList = assets.filter(a => a.position_id === p.id);
+    assetsList.forEach(a => {
+      if (a.amount > maxPassives) maxPassives = a.amount;
+    });
+  });
+  
+  // --- 6. Денежный поток (серии) ---
+  const monthlyData = getMonthlyCashFlow(transactions);
+  const currentStreak = monthlyData.currentStreak;
+  const maxStreak = monthlyData.maxStreak;
+  
+  // --- 7. Рост капитала ---
+  const firstCapital = getFirstCapital(assets, positions);
+  const capitalGrowth = firstCapital > 0 ? ((currentCapital - firstCapital) / firstCapital) * 100 : 0;
+  
+  // --- 8. Пассивный доход ---
+  const passiveIncomeCategories = settings.passive_income_categories?.split(',').map(s => s.trim()) || [];
+  const passiveIncome = transactions.filter(t => 
+    t.type === 'income' && 
+    passiveIncomeCategories.includes(t.category) &&
+    t.date >= oneYearAgoStr &&
+    t.date <= today
+  ).reduce((s, t) => s + t.amount, 0);
+  
+  const passiveCoverage = totalMandatoryExpenses > 0 ? (passiveIncome / Math.abs(totalMandatoryExpenses)) * 100 : 0;
+  
+  // --- 9. Собираем результаты ---
+  return {
+    fairProgress: Math.min(fairProgress, 100),
+    targetCapital: targetCapital,
+    currentCapital: currentCapital,
+    currentPassives: currentPassives,
+    maxPassives: maxPassives,
+    currentStreak: currentStreak,
+    maxStreak: maxStreak,
+    capitalGrowth: capitalGrowth,
+    passiveCoverage: Math.min(passiveCoverage, 100),
+    firstCapital: firstCapital,
+    yearlyMandatory: yearlyMandatory,
+    passiveIncome: passiveIncome,
+    totalMandatoryExpenses: totalMandatoryExpenses,
+  };
+}
+
+// ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ДОСТИЖЕНИЙ
+// ============================================================
+
+function getMonthlyCashFlow(transactions) {
+  // Группируем по месяцам
+  const months = {};
+  transactions.forEach(t => {
+    const month = t.date.substring(0, 7);
+    if (!months[month]) months[month] = { income: 0, expense: 0 };
+    if (t.type === 'income') months[month].income += t.amount;
+    else months[month].expense += t.amount;
+  });
+  
+  const sortedMonths = Object.keys(months).sort();
+  
+  // Считаем серии (месяцы, где income > expense)
+  let currentStreak = 0;
+  let maxStreak = 0;
+  let tempStreak = 0;
+  
+  sortedMonths.forEach(month => {
+    const data = months[month];
+    if (data.income > Math.abs(data.expense)) {
+      tempStreak++;
+      if (tempStreak > maxStreak) maxStreak = tempStreak;
+    } else {
+      tempStreak = 0;
+    }
+  });
+  
+  currentStreak = tempStreak;
+  
+  return { currentStreak, maxStreak };
+}
+
+function getFirstCapital(assets, positions) {
+  // Берём самое первое значение капитала (самая ранняя дата)
+  const allAssets = [...assets].sort((a, b) => a.date.localeCompare(b.date));
+  if (!allAssets.length) return 0;
+  
+  // Суммируем все активы на первую дату
+  const firstDate = allAssets[0].date;
+  const firstAssets = assets.filter(a => a.date === firstDate);
+  
+  let total = 0;
+  firstAssets.forEach(a => {
+    const pos = positions.find(p => p.id === a.position_id);
+    if (pos && pos.block !== 'passive') {
+      total += a.amount;
+    }
+  });
+  
+  return total;
+}
+
+// ============================================================
+// ПРОВЕРКА И ОБНОВЛЕНИЕ ДОСТИЖЕНИЙ
+// ============================================================
+
+async function checkAndUpdateAchievements() {
+  const achievements = await loadAchievements();
+  if (!achievements.length) {
+    console.log('Нет достижений в таблице');
+    return;
+  }
+  
+  // Загружаем данные для расчёта
+  const transactions = S.transactions || [];
+  const assets = S.assets || [];
+  const positions = S.positions || [];
+  const settings = S.settings || {};
+  
+  // Добавляем категории в настройки для расчёта
+  settings.categories = S.categories || [];
+  
+  const data = calculateAchievements(transactions, assets, positions, settings);
+  const today = localDateStr(new Date());
+  
+  let updated = 0;
+  
+  for (const ach of achievements) {
+    let achieved = false;
+    let value = ach.current_value;
+    
+    // Проверяем в зависимости от типа
+    switch (ach.type) {
+      case 'fair':
+        achieved = data.fairProgress >= ach.current_value;
+        break;
+      case 'debt':
+        if (ach.id === 'debt_100') {
+          achieved = data.currentPassives <= 1000; // 1000 ₽ считаем нулём
+        } else {
+          const reduction = data.maxPassives > 0 ? ((data.maxPassives - data.currentPassives) / data.maxPassives) * 100 : 0;
+          achieved = reduction >= ach.current_value;
+        }
+        break;
+      case 'flow':
+        achieved = data.currentStreak >= ach.current_value;
+        break;
+      case 'flow_record':
+        value = data.maxStreak;
+        if (data.maxStreak > 0) {
+          achieved = true;
+          // Обновляем значение рекорда
+          if (data.maxStreak > parseFloat(ach.current_value)) {
+            await saveAchievement(ach.id, today, data.maxStreak);
+          }
+        }
+        break;
+      case 'growth':
+        achieved = data.capitalGrowth >= ach.current_value;
+        break;
+      case 'passive_income':
+        achieved = data.passiveCoverage >= ach.current_value;
+        break;
+      default:
+        continue;
+    }
+    
+    // Если достижение выполнено и дата не установлена — сохраняем
+    if (achieved && !ach.achieved_date) {
+      await saveAchievement(ach.id, today, value);
+      updated++;
+      console.log(`🏆 Достижение получено: ${ach.icon} ${ach.name}`);
+    }
+    
+    // Если достижение было получено, но больше не выполняется (кроме debt_100, flow_record, fair_100)
+    if (ach.achieved_date && !achieved) {
+      // Для некоторых достижений мы не сбрасываем дату (они навсегда)
+      const permanentTypes = ['debt_100', 'fair_100', 'flow_record'];
+      if (!permanentTypes.includes(ach.id)) {
+        await resetAchievement(ach.id);
+        console.log(`🔄 Достижение сброшено: ${ach.icon} ${ach.name}`);
+      }
+    }
+  }
+  
+  if (updated > 0) {
+    console.log(`✅ Обновлено ${updated} достижений`);
+    // Перезагружаем достижения для отображения
+    renderAchievements();
+  }
+}
+
+// ============================================================
+// ОТОБРАЖЕНИЕ ДОСТИЖЕНИЙ
+// ============================================================
+
+async function renderAchievements() {
+  const container = document.getElementById('achievements-content');
+  if (!container) return;
+  
+  const achievements = await loadAchievements();
+  if (!achievements.length) {
+    container.innerHTML = '<div class="empty">Нет достижений</div>';
+    return;
+  }
+  
+  // Группируем по типу
+  const groups = {
+    fair: { name: '💰 FAIR — Финансовая независимость', icon: '🎯' },
+    debt: { name: '🏦 Пассивы', icon: '📉' },
+    flow: { name: '💧 Денежный поток', icon: '🌊' },
+    growth: { name: '📈 Рост капитала', icon: '🌱' },
+    passive_income: { name: '💸 Пассивный доход', icon: '🌟' },
+  };
+  
+  const grouped = {};
+  achievements.forEach(ach => {
+    if (!grouped[ach.type]) grouped[ach.type] = [];
+    grouped[ach.type].push(ach);
+  });
+  
+  // Загружаем данные для контекста
+  const transactions = S.transactions || [];
+  const assets = S.assets || [];
+  const positions = S.positions || [];
+  const settings = S.settings || {};
+  settings.categories = S.categories || [];
+  const data = calculateAchievements(transactions, assets, positions, settings);
+  
+  let html = '';
+  
+  for (const [type, items] of Object.entries(grouped)) {
+    const groupInfo = groups[type];
+    if (!groupInfo) continue;
+    
+    html += `<div class="card" style="margin-bottom:16px;">
+      <div class="card-title">${groupInfo.icon} ${groupInfo.name}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">`;
+    
+    // Сортируем по порогу
+    items.sort((a, b) => a.current_value - b.current_value);
+    
+    for (const ach of items) {
+      const isAchieved = !!ach.achieved_date;
+      
+      // Получаем текущий прогресс
+      let progress = 0;
+      let progressText = '';
+      
+      switch (type) {
+        case 'fair':
+          progress = Math.min(data.fairProgress, 100);
+          progressText = `${progress.toFixed(0)}% от цели`;
+          break;
+        case 'debt':
+          if (ach.id === 'debt_100') {
+            progress = data.currentPassives <= 1000 ? 100 : 0;
+            progressText = data.currentPassives <= 1000 ? '✅ Долгов нет!' : `Осталось ${fmt(data.currentPassives)}`;
+          } else {
+            const reduction = data.maxPassives > 0 ? ((data.maxPassives - data.currentPassives) / data.maxPassives) * 100 : 0;
+            progress = Math.min(reduction, 100);
+            progressText = `${progress.toFixed(0)}% снижения долгов`;
+          }
+          break;
+        case 'flow':
+          if (ach.id === 'flow_record') {
+            progress = data.maxStreak;
+            progressText = `Рекорд: ${data.maxStreak} мес.`;
+          } else {
+            progress = Math.min(data.currentStreak, ach.current_value);
+            progressText = `Текущая серия: ${data.currentStreak} мес.`;
+          }
+          break;
+        case 'growth':
+          progress = Math.min(data.capitalGrowth, 300);
+          progressText = `${progress.toFixed(0)}% роста`;
+          break;
+        case 'passive_income':
+          progress = Math.min(data.passiveCoverage, 100);
+          progressText = `${progress.toFixed(0)}% покрытия`;
+          break;
+        default:
+          progress = 0;
+          progressText = '';
+      }
+      
+      const isCompleted = ach.achieved_date !== null;
+      const progressPercent = Math.min(progress / ach.current_value * 100, 100);
+      
+      html += `
+        <div style="background:var(--surface2);border-radius:10px;padding:12px 14px;border:1px solid ${isCompleted ? 'var(--accent)' : 'var(--border)'};opacity:${isCompleted ? 1 : 0.6};">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:20px;">${ach.icon}</span>
+            <span style="font-weight:600;font-size:13px;color:var(--text);">${ach.name}</span>
+            ${isCompleted ? '<span style="font-size:12px;color:var(--accent);margin-left:auto;">✅</span>' : ''}
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">${progressText}</div>
+          <div style="background:var(--bg);border-radius:4px;height:4px;overflow:hidden;">
+            <div style="background:${isCompleted ? 'var(--accent)' : 'var(--border)'};height:100%;width:${progressPercent}%;transition:width 0.5s ease;"></div>
+          </div>
+          ${isCompleted ? `<div style="font-size:10px;color:var(--text2);margin-top:4px;">🏅 ${ach.achieved_date}</div>` : ''}
+        </div>
+      `;
+    }
+    
+    html += `</div></div>`;
+  }
+  
+  container.innerHTML = html;
+}
+
+// ============================================================
+// ПЕРИОДИЧЕСКАЯ ПРОВЕРКА ДОСТИЖЕНИЙ
+// ============================================================
+
+// Проверяем достижения при загрузке данных
+const originalLoadTransactions = window.loadTransactionsFull;
+if (originalLoadTransactions) {
+  window.loadTransactionsFull = async function() {
+    await originalLoadTransactions();
+    // Ждём загрузки всех данных
+    setTimeout(async () => {
+      await checkAndUpdateAchievements();
+    }, 1000);
+  };
+}
+
+// Запускаем проверку после загрузки страницы
+setTimeout(async () => {
+  // Ждём полной загрузки данных
+  const waitForData = setInterval(async () => {
+    if (S.transactions && S.transactions.length > 0 && S.assets && S.positions) {
+      clearInterval(waitForData);
+      await checkAndUpdateAchievements();
+    }
+  }, 500);
+}, 2000);
 </script>
 </body>
 </html>
