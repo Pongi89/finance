@@ -2946,19 +2946,19 @@ function findRecords(year, allYears) {
   }
 
   // --- 5. Расходы снизились (общий итог) ---
-  const expenseThis = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(yearStr))
-    .reduce((s, t) => s + Math.abs(t.amount), 0);
-  const expensePrev = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(String(year - 1)))
-    .reduce((s, t) => s + Math.abs(t.amount), 0);
-  
-  if (expenseThis < expensePrev && expensePrev > 0) {
-    const decrease = ((expensePrev - expenseThis) / expensePrev) * 100;
-    records.push({
-      label: '🏆 Расходы снизились',
-      value: fmt(expenseThis),
-      context: `(▼ ${decrease.toFixed(0)}% к ${year - 1})`
-    });
-  }
+const expenseThis = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(yearStr))
+  .reduce((s, t) => s + Math.abs(t.amount), 0);
+const expensePrev = S.transactions.filter(t => t.type === 'expense' && t.date.startsWith(String(year - 1)))
+  .reduce((s, t) => s + Math.abs(t.amount), 0);
+
+if (expenseThis < expensePrev && expensePrev > 0) {
+  const decrease = ((expensePrev - expenseThis) / expensePrev) * 100;
+  records.push({
+    label: '🏆 Расходы снизились',
+    value: fmt(expenseThis),   // ← ИСПРАВЛЕНО! Теперь показывает текущий год
+    context: `(▼ ${decrease.toFixed(0)}% к ${year - 1})`
+  });
+}
 
   // --- 6. Норма сбережений улучшилась ---
   const savingsRateThis = incomeThis > 0 ? ((incomeThis - expenseThis) / incomeThis * 100) : 0;
