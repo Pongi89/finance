@@ -1172,25 +1172,7 @@ function filterByPeriod(txs, period) {
 // DASHBOARD
 // ============================================================
 function renderDashboard() {
-  // --- Расчёт FAIR ---
   const today = localDateStr(new Date());
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const oneYearAgoStr = localDateStr(oneYearAgo);
-  
-  const mandatoryNames = S.categories.filter(c => isMandatory(c)).map(c => c.name);
-  const mandatoryExpenses = S.transactions.filter(t => 
-    t.type === 'expense' && 
-    mandatoryNames.includes(t.category) &&
-    t.date >= oneYearAgoStr &&
-    t.date <= today
-  );
-  const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
-  const targetCapital = totalMandatory12 * 25;
-  
-
-  
-  // --- ОСТАЛЬНОЙ КОД (был) ---
   const lastDayOfMonth = `${S.dashYear}-${pad(S.dashMonth+1)}-${pad(new Date(S.dashYear,S.dashMonth+1,0).getDate())}`;
   const monthCutoff = lastDayOfMonth < today ? lastDayOfMonth : today;
   const isFutureMonth = `${S.dashYear}-${pad(S.dashMonth+1)}-01` > today;
@@ -1198,23 +1180,15 @@ function renderDashboard() {
   const txs = getMonthTx();
   const expenses = txs.filter(t=>t.type==='expense');
   const incomes = txs.filter(t=>t.type==='income');
+  const mandatoryNames = S.categories.filter(c=>isMandatory(c)).map(c=>c.name);
 
   const totalExpense = expenses.reduce((s,t)=>s+t.amount,0);
   const totalIncome = incomes.reduce((s,t)=>s+t.amount,0);
   const mandatory = expenses.filter(t=>mandatoryNames.includes(t.category)).reduce((s,t)=>s+t.amount,0);
   const optional = totalExpense - mandatory;
 
-  const accountPositions = activePos().filter(p=>p.block==='account');
-  let accountsTotal = 0;
-  if (!isFutureMonth) {
-    accountPositions.forEach(p => {
-      const latest = getLatestAsset(p.id, monthCutoff);
-      if (latest) accountsTotal += latest.amount;
-    });
-  }
-
-  const totalFunds = totalIncome + accountsTotal;
-  const delta = totalFunds - totalExpense;
+  // Разница = Доходы − Расходы (операционный денежный поток)
+  const delta = totalIncome - totalExpense;
 
   document.getElementById('s-expense').textContent = fmt(totalExpense);
   document.getElementById('s-mandatory').textContent = fmt(mandatory);
@@ -1224,7 +1198,7 @@ function renderDashboard() {
 
   renderDayTable(expenses, 'expense-table-container', false);
   renderDayTable(incomes, 'income-table-container', true);
-  renderTotalsBlocks(incomes, expenses, mandatory, optional, accountPositions, monthCutoff, totalIncome, totalExpense, accountsTotal, totalFunds, delta);
+  renderTotalsBlocks(incomes, expenses, mandatory, optional, [], monthCutoff, totalIncome, totalExpense, 0, 0, delta);
   renderMonthChart(expenses, incomes);
 }
 
