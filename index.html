@@ -324,17 +324,22 @@ th.sortable.sorted-desc::after {
     <button class="month-nav-btn" onclick="shiftMonth(1)">›</button>
   </div>
 
-  <div class="stats-row">
-    <div class="stat-card"><div class="stat-label">Все расходы</div><div class="stat-value c-expense" id="s-expense">—</div></div>
-    <div class="stat-card"><div class="stat-label">Обязательные</div><div class="stat-value c-text" id="s-mandatory">—</div></div>
-    <div class="stat-card"><div class="stat-label">Необязательные</div><div class="stat-value c-text" id="s-optional">—</div></div>
-    <div class="stat-card"><div class="stat-label">Доходы</div><div class="stat-value c-income" id="s-income">—</div></div>
-    <div class="stat-card"><div class="stat-label">Текущие счета</div><div class="stat-value c-muted" id="s-accounts">—</div></div>
-    <div class="stat-card"><div class="stat-label">Всего средств</div><div class="stat-value c-accent" id="s-total-funds">—</div></div>
-    <div class="stat-card"><div class="stat-label">📆 Траты за 12 мес</div><div class="stat-value c-expense" id="s-12m-expense">—</div></div>
-    <div class="stat-card"><div class="stat-label">🎯 Цель FAIR</div><div class="stat-value c-accent" id="s-fair-target">—</div></div>
-    <div class="stat-card"><div class="stat-label">Разница</div><div class="stat-value c-accent" id="s-delta">—</div></div>
+  <div class="stats-row" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:stretch;">
+  <!-- ЛЕВАЯ ГРУППА: основные показатели -->
+  <div style="display:flex; flex-wrap:wrap; gap:10px; flex:1;">
+    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Все расходы</div><div class="stat-value c-expense" id="s-expense">—</div></div>
+    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Обязательные</div><div class="stat-value c-text" id="s-mandatory">—</div></div>
+    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Необязательные</div><div class="stat-value c-text" id="s-optional">—</div></div>
+    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Доходы</div><div class="stat-value c-income" id="s-income">—</div></div>
+    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Разница</div><div class="stat-value c-accent" id="s-delta">—</div></div>
   </div>
+
+  <!-- ПРАВАЯ ГРУППА: FAIR -->
+  <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:stretch;">
+    <div class="stat-card" style="min-width:140px; background:var(--surface2); border-color:var(--accent);"><div class="stat-label">📆 Траты за 12 мес</div><div class="stat-value c-expense" id="s-12m-expense" style="font-size:15px;">—</div></div>
+    <div class="stat-card" style="min-width:140px; background:var(--surface2); border-color:var(--accent);"><div class="stat-label">🎯 Цель FAIR</div><div class="stat-value c-accent" id="s-fair-target" style="font-size:15px;">—</div></div>
+  </div>
+</div>
 
   <!-- Расходы по дням -->
   <div class="card">
@@ -1208,8 +1213,6 @@ function renderDashboard() {
   document.getElementById('s-mandatory').textContent = fmt(mandatory);
   document.getElementById('s-optional').textContent = fmt(optional);
   document.getElementById('s-income').textContent = fmt(totalIncome);
-  document.getElementById('s-accounts').textContent = fmt(accountsTotal);
-  document.getElementById('s-total-funds').textContent = fmt(totalFunds);
   document.getElementById('s-delta').textContent = fmt(delta);
 
   renderDayTable(expenses, 'expense-table-container', false);
