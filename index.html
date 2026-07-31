@@ -324,20 +324,12 @@ th.sortable.sorted-desc::after {
     <button class="month-nav-btn" onclick="shiftMonth(1)">›</button>
   </div>
 
-  <div class="stats-row" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:stretch;">
-  <!-- ЛЕВАЯ ГРУППА: основные показатели -->
-  <div style="display:flex; flex-wrap:wrap; gap:10px; flex:1;">
-    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Все расходы</div><div class="stat-value c-expense" id="s-expense">—</div></div>
-    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Обязательные</div><div class="stat-value c-text" id="s-mandatory">—</div></div>
-    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Необязательные</div><div class="stat-value c-text" id="s-optional">—</div></div>
-    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Доходы</div><div class="stat-value c-income" id="s-income">—</div></div>
-    <div class="stat-card" style="flex:1; min-width:100px;"><div class="stat-label">Разница</div><div class="stat-value c-accent" id="s-delta">—</div></div>
-  </div>
-
-  <!-- ПРАВАЯ ГРУППА: FAIR -->
-  <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:stretch;">
-    <div class="stat-card" style="min-width:140px; background:var(--surface2); border-color:var(--accent);"><div class="stat-label">📆 Траты за 12 мес</div><div class="stat-value c-expense" id="s-12m-expense" style="font-size:15px;">—</div></div>
-    <div class="stat-card" style="min-width:140px; background:var(--surface2); border-color:var(--accent);"><div class="stat-label">🎯 Цель FAIR</div><div class="stat-value c-accent" id="s-fair-target" style="font-size:15px;">—</div></div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Все расходы</div><div class="stat-value c-expense" id="s-expense">—</div></div>
+    <div class="stat-card"><div class="stat-label">Обязательные</div><div class="stat-value c-text" id="s-mandatory">—</div></div>
+    <div class="stat-card"><div class="stat-label">Необязательные</div><div class="stat-value c-text" id="s-optional">—</div></div>
+    <div class="stat-card"><div class="stat-label">Доходы</div><div class="stat-value c-income" id="s-income">—</div></div>
+    <div class="stat-card"><div class="stat-label">Разница</div><div class="stat-value c-accent" id="s-delta">—</div></div>
   </div>
 </div>
 
@@ -385,6 +377,23 @@ th.sortable.sorted-desc::after {
     <button class="month-nav-btn" onclick="shiftYear(-1)">‹</button>
     <div class="month-nav-label" id="year-label">—</div>
     <button class="month-nav-btn" onclick="shiftYear(1)">›</button>
+  </div>
+    <!-- FAIR показатели -->
+  <div class="stats-row" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:stretch; margin-bottom:16px;">
+    <div style="display:flex; flex-wrap:wrap; gap:10px; flex:1;">
+      <div class="stat-card" style="flex:1; min-width:130px; background:var(--surface2); border-color:var(--accent);">
+        <div class="stat-label">📆 Траты за 12 мес (обязательные)</div>
+        <div class="stat-value c-expense" id="s-12m-expense" style="font-size:16px;">—</div>
+      </div>
+      <div class="stat-card" style="flex:1; min-width:130px; background:var(--surface2); border-color:var(--accent);">
+        <div class="stat-label">🎯 Цель FAIR (×25)</div>
+        <div class="stat-value c-accent" id="s-fair-target" style="font-size:16px;">—</div>
+      </div>
+      <div class="stat-card" style="flex:1; min-width:130px; background:var(--surface2); border-color:var(--accent);">
+        <div class="stat-label">📊 Прогресс к FAIR</div>
+        <div class="stat-value c-accent" id="s-fair-progress" style="font-size:16px;">—</div>
+      </div>
+    </div>
   </div>
   <div class="card">
     <div class="card-title">Расходы по категориям</div>
@@ -1180,8 +1189,7 @@ function renderDashboard() {
   const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
   const targetCapital = totalMandatory12 * 25;
   
-  document.getElementById('s-12m-expense').textContent = fmt(totalMandatory12);
-  document.getElementById('s-fair-target').textContent = fmt(targetCapital);
+
   
   // --- ОСТАЛЬНОЙ КОД (был) ---
   const lastDayOfMonth = `${S.dashYear}-${pad(S.dashMonth+1)}-${pad(new Date(S.dashYear,S.dashMonth+1,0).getDate())}`;
@@ -1343,6 +1351,33 @@ function renderMonthChart(expenses, incomes) {
 // ГОД
 // ============================================================
 function renderYearTable() {
+  // --- Расчёт FAIR для вкладки "Год" ---
+  const today = localDateStr(new Date());
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const oneYearAgoStr = localDateStr(oneYearAgo);
+  
+  const mandatoryNames = S.categories.filter(c => isMandatory(c)).map(c => c.name);
+  const mandatoryExpenses = S.transactions.filter(t => 
+    t.type === 'expense' && 
+    mandatoryNames.includes(t.category) &&
+    t.date >= oneYearAgoStr &&
+    t.date <= today
+  );
+  const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
+  const targetCapital = totalMandatory12 * 25;
+  const currentCapital = calcCapital(today);
+  const fairProgress = targetCapital > 0 ? (currentCapital / targetCapital) * 100 : 0;
+  
+  const fairProgressEl = document.getElementById('s-fair-progress');
+  if (fairProgressEl) {
+    fairProgressEl.textContent = fairProgress.toFixed(1) + '%';
+    fairProgressEl.style.color = fairProgress >= 100 ? 'var(--income)' : fairProgress >= 50 ? 'var(--accent)' : 'var(--text2)';
+  }
+  document.getElementById('s-12m-expense').textContent = fmt(totalMandatory12);
+  document.getElementById('s-fair-target').textContent = fmt(targetCapital);
+  
+  // --- Остальной код (таблицы) ---
   renderYearSection('expense', 'year-expense-container');
   renderYearSection('income', 'year-income-container');
 }
