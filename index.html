@@ -3483,11 +3483,10 @@ async function renderYearTableOptimized() {
   
   // --- Расчёт FAIR показателей (только за последние 12 месяцев) ---
   const year = S.viewYear || new Date().getFullYear();
-  // Используем существующую функцию localDateStr без создания новой переменной today
   const now = new Date();
   const oneYearAgo = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
   const oneYearAgoStr = localDateStr(oneYearAgo);
-  const todayStr = localDateStr(now);
+  const todayStr = localDateStr(now);  // ← уникальное имя, не конфликтует с today
   
   const mandatoryNames = S.categories.filter(c => isMandatory(c)).map(c => c.name);
   const mandatoryExpenses = S.transactions.filter(t => 
