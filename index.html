@@ -2444,8 +2444,10 @@ function showPage(name){
   const gear=document.querySelector('.nav-gear');
   if(gear) gear.style.color=name==='settings'?'var(--accent)':'';
   if (name === 'achievements') {
-     renderAchievements();
-  }
+  // Проверяем достижения при открытии вкладки
+  checkAndUpdateAchievements();
+  renderAchievements();
+}
   if(name==='balance'){renderBalance();renderAssetInputList();}
   if(name==='settings'){renderSettingsCategories();renderPositionsList();}
   if(name==='year'){
@@ -3372,7 +3374,8 @@ async function checkAndUpdateAchievements() {
 async function renderAchievements() {
   const container = document.getElementById('achievements-content');
   if (!container) return;
-  
+    // Проверяем достижения перед отображением
+  await checkAndUpdateAchievements();
   const achievements = await loadAchievements();
   if (!achievements.length) {
     container.innerHTML = '<div class="empty">Нет достижений</div>';
@@ -3488,28 +3491,7 @@ async function renderAchievements() {
 // ПЕРИОДИЧЕСКАЯ ПРОВЕРКА ДОСТИЖЕНИЙ
 // ============================================================
 
-// Проверяем достижения при загрузке данных
-const originalLoadTransactions = window.loadTransactionsFull;
-if (originalLoadTransactions) {
-  window.loadTransactionsFull = async function() {
-    await originalLoadTransactions();
-    // Ждём загрузки всех данных
-    setTimeout(async () => {
-      await checkAndUpdateAchievements();
-    }, 1000);
-  };
-}
 
-// Запускаем проверку после загрузки страницы
-setTimeout(async () => {
-  // Ждём полной загрузки данных
-  const waitForData = setInterval(async () => {
-    if (S.transactions && S.transactions.length > 0 && S.assets && S.positions) {
-      clearInterval(waitForData);
-      await checkAndUpdateAchievements();
-    }
-  }, 500);
-}, 2000);
 </script>
 </body>
 </html>
