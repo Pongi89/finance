@@ -3268,6 +3268,20 @@ function getFirstCapital(assets, positions) {
 // ============================================================
 
 async function checkAndUpdateAchievements() {
+  // --- Ждём загрузки данных ---
+  if (!S.transactions || S.transactions.length === 0) {
+    console.log('⏳ Данные ещё не загружены, пропускаем проверку достижений');
+    return;
+  }
+  if (!S.assets || S.assets.length === 0) {
+    console.log('⏳ Активы ещё не загружены, пропускаем проверку достижений');
+    return;
+  }
+  if (!S.positions || S.positions.length === 0) {
+    console.log('⏳ Позиции ещё не загружены, пропускаем проверку достижений');
+    return;
+  }
+  
   const achievements = await loadAchievements();
   if (!achievements.length) {
     console.log('Нет достижений в таблице');
@@ -3348,11 +3362,9 @@ async function checkAndUpdateAchievements() {
   
   if (updated > 0) {
     console.log(`✅ Обновлено ${updated} достижений`);
-    // Перезагружаем достижения для отображения
     renderAchievements();
   }
 }
-
 // ============================================================
 // ОТОБРАЖЕНИЕ ДОСТИЖЕНИЙ
 // ============================================================
