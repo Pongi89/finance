@@ -3473,7 +3473,7 @@ async function loadYearSummary(year) {
 // Оптимизированная версия renderYearTable
 async function renderYearTableOptimized() {
   // Ждём загрузки данных
-  if (!S.transactions || S.transactions.length === 0) {
+  if (!S.transactions || S.transactions.length === 0 || !S.assets || !S.positions) {
     console.log('⏳ Данные загружаются...');
     document.getElementById('year-expense-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
     document.getElementById('year-income-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
@@ -3481,24 +3481,24 @@ async function renderYearTableOptimized() {
     return;
   }
   
-  // --- Расчёт FAIR показателей (из S.transactions) ---
+  // --- Расчёт FAIR показателей (только за последние 12 месяцев) ---
   const year = S.viewYear || new Date().getFullYear();
-  const today = localDateStr(new Date());
+  // Используем существующую функцию localDateStr без создания новой переменной today
+  const now = new Date();
+  const oneYearAgo = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
+  const oneYearAgoStr = localDateStr(oneYearAgo);
+  const todayStr = localDateStr(now);
+  
   const mandatoryNames = S.categories.filter(c => isMandatory(c)).map(c => c.name);
-  const today = localDateStr(new Date());
-const oneYearAgo = new Date();
-oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-const oneYearAgoStr = localDateStr(oneYearAgo);
-
-const mandatoryExpenses = S.transactions.filter(t => 
-  t.type === 'expense' && 
-  mandatoryNames.includes(t.category) &&
-  t.date >= oneYearAgoStr &&
-  t.date <= today
-);
+  const mandatoryExpenses = S.transactions.filter(t => 
+    t.type === 'expense' && 
+    mandatoryNames.includes(t.category) &&
+    t.date >= oneYearAgoStr &&
+    t.date <= todayStr
+  );
   const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
   const targetCapital = totalMandatory12 * 25;
-  const currentCapital = calcCapital(today);
+  const currentCapital = calcCapital(todayStr);
   const fairProgress = targetCapital > 0 ? (currentCapital / targetCapital) * 100 : 0;
   
   const fairProgressEl = document.getElementById('s-fair-progress');
@@ -3510,12 +3510,6 @@ const mandatoryExpenses = S.transactions.filter(t =>
   document.getElementById('s-fair-target').textContent = fmt(targetCapital);
   
   // --- Рендерим полные таблицы с месяцами ---
-  // Убедимся, что все транзакции загружены
-  if (S.transactionsLoaded !== 'full') {
-    console.log('⏳ Загружаем полные данные...');
-    await loadTransactionsFull();
-  }
-  
   renderYearSection('expense', 'year-expense-container');
   renderYearSection('income', 'year-income-container');
 }
