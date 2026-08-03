@@ -1327,23 +1327,6 @@ function renderYearTable() {
   // Просто вызываем оптимизированную версию
   renderYearTableOptimized();
 }
-  const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
-  const targetCapital = totalMandatory12 * 25;
-  const currentCapital = calcCapital(today);
-  const fairProgress = targetCapital > 0 ? (currentCapital / targetCapital) * 100 : 0;
-  
-  const fairProgressEl = document.getElementById('s-fair-progress');
-  if (fairProgressEl) {
-    fairProgressEl.textContent = fairProgress.toFixed(1) + '%';
-    fairProgressEl.style.color = fairProgress >= 100 ? 'var(--income)' : fairProgress >= 50 ? 'var(--accent)' : 'var(--text2)';
-  }
-  document.getElementById('s-12m-expense').textContent = fmt(totalMandatory12);
-  document.getElementById('s-fair-target').textContent = fmt(targetCapital);
-  
-  // --- Остальной код (таблицы) ---
-  renderYearSection('expense', 'year-expense-container');
-  renderYearSection('income', 'year-income-container');
-}
 
 // ============================================================
 // ГОД - ТАБЛИЦА С СОРТИРОВКОЙ
