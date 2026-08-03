@@ -1026,7 +1026,7 @@ function toggleDemo() {
 // ============================================================
 // API
 // ============================================================
-function fetchWithTimeout(input, init={}, timeout=10000){
+function fetchWithTimeout(input, init={}, timeout=30000){
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),timeout);
   return fetch(input,{...init,signal:ctrl.signal}).finally(()=>clearTimeout(timer));
