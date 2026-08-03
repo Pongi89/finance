@@ -3473,7 +3473,7 @@ async function loadYearSummary(year) {
 // Оптимизированная версия renderYearTable
 async function renderYearTableOptimized() {
   // Ждём загрузки данных
-  if (!S.transactions || S.transactions.length === 0 || !S.assets || !S.positions) {
+  if (!S.transactions || S.transactions.length === 0) {
     console.log('⏳ Данные загружаются...');
     document.getElementById('year-expense-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
     document.getElementById('year-income-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
@@ -3502,11 +3502,16 @@ async function renderYearTableOptimized() {
   document.getElementById('s-12m-expense').textContent = fmt(totalMandatory12);
   document.getElementById('s-fair-target').textContent = fmt(targetCapital);
   
-  // --- Рендерим полные таблицы с месяцами (используем обычную renderYearSection) ---
-  // Она работает с S.transactions (все данные уже загружены в память)
+  // --- Рендерим полные таблицы с месяцами ---
+  // Убедимся, что все транзакции загружены
+  if (S.transactionsLoaded !== 'full') {
+    console.log('⏳ Загружаем полные данные...');
+    await loadTransactionsFull();
+  }
+  
   renderYearSection('expense', 'year-expense-container');
   renderYearSection('income', 'year-income-container');
-}  
+}
 
 </script>
 </body>
