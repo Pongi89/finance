@@ -3472,6 +3472,16 @@ async function loadYearSummary(year) {
 
 // Оптимизированная версия renderYearTable
 async function renderYearTableOptimized() {
+  // Ждём загрузки данных
+  if (!S.transactions || S.transactions.length === 0 || !S.assets || !S.positions) {
+    console.log('⏳ Данные загружаются...');
+    // Показываем загрузчик
+    document.getElementById('year-expense-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
+    document.getElementById('year-income-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
+    // Пробуем через 2 секунды ещё раз
+    setTimeout(renderYearTableOptimized, 2000);
+    return;
+  }
   const year = S.viewYear || new Date().getFullYear();
   
   // Загружаем итоги через быстрый API
