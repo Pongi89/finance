@@ -3485,10 +3485,17 @@ async function renderYearTableOptimized() {
   const year = S.viewYear || new Date().getFullYear();
   const today = localDateStr(new Date());
   const mandatoryNames = S.categories.filter(c => isMandatory(c)).map(c => c.name);
-  const mandatoryExpenses = S.transactions.filter(t => 
-    t.type === 'expense' && 
-    mandatoryNames.includes(t.category)
-  );
+  const today = localDateStr(new Date());
+const oneYearAgo = new Date();
+oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+const oneYearAgoStr = localDateStr(oneYearAgo);
+
+const mandatoryExpenses = S.transactions.filter(t => 
+  t.type === 'expense' && 
+  mandatoryNames.includes(t.category) &&
+  t.date >= oneYearAgoStr &&
+  t.date <= today
+);
   const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
   const targetCapital = totalMandatory12 * 25;
   const currentCapital = calcCapital(today);
