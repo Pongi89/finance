@@ -2465,7 +2465,12 @@ function calcCapital(cutoff) {
   return total;
 }
 
-function isMandatory(c){return c.is_mandatory===true||c.is_mandatory==='true'||c.is_mandatory==='TRUE';}
+function isMandatory(c) {
+  // Проверяем разные варианты: true, "true", "TRUE", 1, "1"
+  if (c.is_mandatory === true || c.is_mandatory === 'true' || c.is_mandatory === 'TRUE') return true;
+  if (c.is_mandatory === 1 || c.is_mandatory === '1') return true;
+  return false;
+}
 // только активные позиции (для баланса и формы ввода)
 function activePos(){return S.positions.filter(p=>p.active!==false);}
 function getPassiveCategoryNames(){const val=S.settings.passive_income_categories||'';return val?val.split(',').map(s=>s.trim()).filter(Boolean):[];}
