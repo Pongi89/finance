@@ -3486,19 +3486,29 @@ async function renderYearTableOptimized() {
   const now = new Date();
   const oneYearAgo = new Date(now.getFullYear(), now.getMonth() - 12, now.getDate());
   const oneYearAgoStr = localDateStr(oneYearAgo);
-  const todayStr = localDateStr(now);  // ← уникальное имя, не конфликтует с today
+  const todayStr = localDateStr(now);
   
   const mandatoryNames = S.categories.filter(c => isMandatory(c)).map(c => c.name);
+  console.log('Обязательные категории для FAIR:', mandatoryNames);
+  
   const mandatoryExpenses = S.transactions.filter(t => 
     t.type === 'expense' && 
     mandatoryNames.includes(t.category) &&
     t.date >= oneYearAgoStr &&
     t.date <= todayStr
   );
+  console.log('Обязательных транзакций за 12 мес:', mandatoryExpenses.length);
+  
   const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
+  console.log('Сумма обязательных расходов за 12 мес:', totalMandatory12);
+  
   const targetCapital = totalMandatory12 * 25;
   const currentCapital = calcCapital(todayStr);
   const fairProgress = targetCapital > 0 ? (currentCapital / targetCapital) * 100 : 0;
+  
+  console.log('Цель FAIR:', targetCapital);
+  console.log('Текущий капитал:', currentCapital);
+  console.log('Прогресс к FAIR:', fairProgress);
   
   const fairProgressEl = document.getElementById('s-fair-progress');
   if (fairProgressEl) {
