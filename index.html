@@ -3698,7 +3698,59 @@ async function renderAchievements() {
   container.innerHTML = html;
 } // <-- ЗАКРЫВАЮЩАЯ СКОБКА ДЛЯ renderAchievements
 
+// ============================================================
+// ФИКС: принудительное обновление кэша при загрузке
+// ============================================================
 
+// Переопределяем loadTransactionsFull для правильного обновления кэша
+const originalLoadTransactionsFull = window.loadTransactionsFull;
+
+window.loadTransactionsFull = async function() {
+  try {
+    console.log('🔄 Загрузка полных данных...');
+    
+    const url = new URL(S.apiUrl);
+    url.searchParams.set('action', 'getTransactions');
+    url.searchParams.set('_nocache', Date.now());
+    
+    const res = await fetchWithTimeout(url.toString());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    
+    if (!data.data || data.data.length === 0) {
+      console.warn('⚠️ Нет данных');
+      return;
+    }
+    
+    S.transactions = data.data.map(t => ({
+      ...t,
+      amount: parseFloat(t.amount) || 0,
+      date: String(t.date).substring(0,10)
+    }));
+    S.transactionsLoaded = 'full';
+    
+    console.log(`✅ Загружено ${S.transactions.length} транзакций`);
+    
+    // Обновляем кэш
+    localStorage.setItem('cache_getTransactions', JSON.stringify({
+      timestamp: Date.now(),
+      data: data
+    }));
+    console.log('💾 Кэш обновлён');
+    
+    // Обновляем интерфейс
+    renderDashboard();
+    renderHistory();
+    renderYearTable();
+    renderDynamics();
+    
+  } catch(e) {
+    console.error('Ошибка полной загрузки:', e);
+    errToast(e, 'всех транзакций');
+  }
+};
+
+console.log('✅ loadTransactionsFull обновлена');
 </script>
 </body>
 </html>
