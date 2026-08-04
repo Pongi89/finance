@@ -1095,12 +1095,12 @@ async function loadTransactionsFast(from, to) {
 // полная загрузка — все данные, в фоне
 async function loadTransactionsFull() {
   try {
-    const r = await apiGet({action:’getTransactions’});
+    const r = await apiGet({action:'getTransactions'});
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
     S.transactionsLoaded = ‘full’;
 
     // Обновляем только открытую вкладку
-    const activePage = document.querySelector(‘.page.active’)?.id;
+    const activePage = document.querySelector('.page.active')?.id;
 
     if (activePage === ‘page-dashboard’) {
       renderDashboard();
