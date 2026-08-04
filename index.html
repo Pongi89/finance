@@ -3478,12 +3478,18 @@ async function loadYearSummary(year) {
 // Оптимизированная версия renderYearTable
 async function renderYearTableOptimized() {
   // Ждём загрузки данных
-  if (!S.transactions || S.transactions.length === 0 || !S.assets || !S.positions) {
+  if (!S.transactions || S.transactions.length === 0) {
     console.log('⏳ Данные загружаются...');
     document.getElementById('year-expense-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
     document.getElementById('year-income-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
     setTimeout(renderYearTableOptimized, 2000);
     return;
+  }
+  
+  // --- Ждём полной загрузки всех транзакций ---
+  if (S.transactionsLoaded !== 'full') {
+    console.log('⏳ Загружаем все транзакции для вкладки "Год"...');
+    await loadTransactionsFull();
   }
   
   // --- Расчёт FAIR показателей (только за последние 12 месяцев) ---
@@ -3494,26 +3500,16 @@ async function renderYearTableOptimized() {
   const todayStr = localDateStr(now);
   
   const mandatoryNames = S.categories.filter(c => isMandatory(c)).map(c => c.name);
-  console.log('Обязательные категории для FAIR:', mandatoryNames);
-  
   const mandatoryExpenses = S.transactions.filter(t => 
     t.type === 'expense' && 
     mandatoryNames.includes(t.category) &&
     t.date >= oneYearAgoStr &&
     t.date <= todayStr
   );
-  console.log('Обязательных транзакций за 12 мес:', mandatoryExpenses.length);
-  
   const totalMandatory12 = mandatoryExpenses.reduce((s, t) => s + t.amount, 0);
-  console.log('Сумма обязательных расходов за 12 мес:', totalMandatory12);
-  
   const targetCapital = totalMandatory12 * 25;
   const currentCapital = calcCapital(todayStr);
   const fairProgress = targetCapital > 0 ? (currentCapital / targetCapital) * 100 : 0;
-  
-  console.log('Цель FAIR:', targetCapital);
-  console.log('Текущий капитал:', currentCapital);
-  console.log('Прогресс к FAIR:', fairProgress);
   
   const fairProgressEl = document.getElementById('s-fair-progress');
   if (fairProgressEl) {
