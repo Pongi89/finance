@@ -3195,6 +3195,10 @@ setTimeout(() => {
 // ДОСТИЖЕНИЯ (ACHIEVEMENTS)
 // ============================================================
 
+// ============================================================
+// ДОСТИЖЕНИЯ (ACHIEVEMENTS)
+// ============================================================
+
 async function loadAchievements() {
   try {
     const r = await apiGet({ action: 'getAchievements' });
@@ -3308,14 +3312,13 @@ function calculateAchievements(transactions, assets, positions, settings) {
     passiveIncome: passiveIncome,
     totalMandatoryExpenses: totalMandatoryExpenses,
   };
-}
+} // <-- ЗАКРЫВАЮЩАЯ СКОБКА ДЛЯ calculateAchievements
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ДОСТИЖЕНИЙ
 // ============================================================
 
 function getMonthlyCashFlow(transactions) {
-  // Группируем по месяцам
   const months = {};
   transactions.forEach(t => {
     const month = t.date.substring(0, 7);
@@ -3326,7 +3329,6 @@ function getMonthlyCashFlow(transactions) {
   
   const sortedMonths = Object.keys(months).sort();
   
-  // Считаем серии (месяцы, где income > expense)
   let currentStreak = 0;
   let maxStreak = 0;
   let tempStreak = 0;
@@ -3347,11 +3349,9 @@ function getMonthlyCashFlow(transactions) {
 }
 
 function getFirstCapital(assets, positions) {
-  // Берём самое первое значение капитала (самая ранняя дата)
   const allAssets = [...assets].sort((a, b) => a.date.localeCompare(b.date));
   if (!allAssets.length) return 0;
   
-  // Суммируем все активы на первую дату
   const firstDate = allAssets[0].date;
   const firstAssets = assets.filter(a => a.date === firstDate);
   
@@ -3371,7 +3371,6 @@ function getFirstCapital(assets, positions) {
 // ============================================================
 
 async function checkAndUpdateAchievements() {
-  // --- Ждём загрузки данных ---
   if (!S.transactions || S.transactions.length === 0) {
     console.log('⏳ Данные ещё не загружены, пропускаем проверку достижений');
     return;
@@ -3391,13 +3390,10 @@ async function checkAndUpdateAchievements() {
     return;
   }
   
-  // Загружаем данные для расчёта
   const transactions = S.transactions || [];
   const assets = S.assets || [];
   const positions = S.positions || [];
   const settings = S.settings || {};
-  
-  // Добавляем категории в настройки для расчёта
   settings.categories = S.categories || [];
   
   const data = calculateAchievements(transactions, assets, positions, settings);
@@ -3409,14 +3405,13 @@ async function checkAndUpdateAchievements() {
     let achieved = false;
     let value = ach.current_value;
     
-    // Проверяем в зависимости от типа
     switch (ach.type) {
       case 'fair':
         achieved = data.fairProgress >= ach.current_value;
         break;
       case 'debt':
         if (ach.id === 'debt_100') {
-          achieved = data.currentPassives <= 1000; // 1000 ₽ считаем нулём
+          achieved = data.currentPassives <= 1000;
         } else {
           const reduction = data.maxPassives > 0 ? ((data.maxPassives - data.currentPassives) / data.maxPassives) * 100 : 0;
           achieved = reduction >= ach.current_value;
@@ -3429,7 +3424,6 @@ async function checkAndUpdateAchievements() {
         value = data.maxStreak;
         if (data.maxStreak > 0) {
           achieved = true;
-          // Обновляем значение рекорда
           if (data.maxStreak > parseFloat(ach.current_value)) {
             await saveAchievement(ach.id, today, data.maxStreak);
           }
@@ -3445,16 +3439,13 @@ async function checkAndUpdateAchievements() {
         continue;
     }
     
-    // Если достижение выполнено и дата не установлена — сохраняем
     if (achieved && !ach.achieved_date) {
       await saveAchievement(ach.id, today, value);
       updated++;
       console.log(`🏆 Достижение получено: ${ach.icon} ${ach.name}`);
     }
     
-    // Если достижение было получено, но больше не выполняется (кроме debt_100, flow_record, fair_100)
     if (ach.achieved_date && !achieved) {
-      // Для некоторых достижений мы не сбрасываем дату (они навсегда)
       const permanentTypes = ['debt_100', 'fair_100', 'flow_record'];
       if (!permanentTypes.includes(ach.id)) {
         await resetAchievement(ach.id);
@@ -3467,7 +3458,8 @@ async function checkAndUpdateAchievements() {
     console.log(`✅ Обновлено ${updated} достижений`);
     renderAchievements();
   }
-}
+} // <-- ЗАКРЫВАЮЩАЯ СКОБКА ДЛЯ checkAndUpdateAchievements
+
 // ============================================================
 // ОТОБРАЖЕНИЕ ДОСТИЖЕНИЙ
 // ============================================================
@@ -3475,15 +3467,15 @@ async function checkAndUpdateAchievements() {
 async function renderAchievements() {
   const container = document.getElementById('achievements-content');
   if (!container) return;
-    // Проверяем достижения перед отображением
+  
   await checkAndUpdateAchievements();
   const achievements = await loadAchievements();
+  
   if (!achievements.length) {
     container.innerHTML = '<div class="empty">Нет достижений</div>';
     return;
   }
   
-  // Группируем по типу
   const groups = {
     fair: { name: '💰 FAIR — Финансовая независимость', icon: '🎯' },
     debt: { name: '🏦 Пассивы', icon: '📉' },
@@ -3498,7 +3490,6 @@ async function renderAchievements() {
     grouped[ach.type].push(ach);
   });
   
-  // Загружаем данные для контекста
   const transactions = S.transactions || [];
   const assets = S.assets || [];
   const positions = S.positions || [];
@@ -3516,13 +3507,11 @@ async function renderAchievements() {
       <div class="card-title">${groupInfo.icon} ${groupInfo.name}</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">`;
     
-    // Сортируем по порогу
     items.sort((a, b) => a.current_value - b.current_value);
     
     for (const ach of items) {
-      const isAchieved = !!ach.achieved_date;
+      const isCompleted = !!ach.achieved_date;
       
-      // Получаем текущий прогресс
       let progress = 0;
       let progressText = '';
       
@@ -3563,7 +3552,6 @@ async function renderAchievements() {
           progressText = '';
       }
       
-      const isCompleted = ach.achieved_date !== null;
       const progressPercent = Math.min(progress / ach.current_value * 100, 100);
       
       html += `
@@ -3586,7 +3574,7 @@ async function renderAchievements() {
   }
   
   container.innerHTML = html;
-}
+} // <-- ЗАКРЫВАЮЩАЯ СКОБКА ДЛЯ renderAchievements
 
 
 </script>
