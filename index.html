@@ -1017,7 +1017,6 @@ function loadAll() {
         console.log(`📦 Полные данные из кэша: ${S.transactions.length} записей`);
         renderAll();
       } else {
-        // Кэш пустой или устарел — удаляем
         console.warn('⚠️ Кэш пустой или устарел, удаляем');
         localStorage.removeItem('cache_getTransactions');
       }
@@ -1027,7 +1026,7 @@ function loadAll() {
     }
   }
 
-  // Загружаем остальные данные
+  // Загружаем остальные данные (категории, активы, позиции, настройки)
   Promise.all([
     loadCategories(),
     loadAssets(),
@@ -1055,36 +1054,6 @@ function loadAll() {
         await recoverFromEmptyData();
       }
     }, 5000);
-  });
-}
-
-  // Загружаем остальные данные (категории, активы, позиции, настройки)
-  Promise.all([
-    loadCategories(),
-    loadAssets(),
-    loadPositions(),
-    loadSettings(),
-  ]).then(() => {
-    // Если кэша нет или он устарел — загружаем полные данные
-    if (!hasFullCache) {
-      // Сначала показываем текущий месяц (быстро)
-      loadTransactionsFast(from, to);
-      
-      // Затем в фоне загружаем всё
-      requestAnimationFrame(() => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(() => loadTransactionsFull());
-        } else {
-          setTimeout(loadTransactionsFull, 50);
-        }
-      });
-    } else {
-      // Если кэш есть — всё равно обновляем в фоне (но не чаще чем раз в 5 минут)
-      const cachedData = JSON.parse(cached);
-      if (Date.now() - cachedData.timestamp > 60000) { // 1 минута
-        setTimeout(loadTransactionsFull, 1000);
-      }
-    }
   });
 }
 
