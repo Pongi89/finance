@@ -993,25 +993,58 @@ function loadAll() {
   const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
   const to = `${y}-${m}-${pad(lastDay)}`;
 
+  // Проверяем, есть ли полные данные в кэше
+  const cached = localStorage.getItem('cache_getTransactions');
+  let hasFullCache = false;
+  
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      if (Date.now() - data.timestamp < CACHE_TTL && data.data && data.data.data) {
+        hasFullCache = true;
+        // Сразу показываем полные данные из кэша
+        S.transactions = data.data.data.map(t => ({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
+        S.transactionsLoaded = 'full';
+        console.log(`📦 Полные данные из кэша: ${S.transactions.length} записей`);
+        
+        // Сразу рендерим всё
+        renderDashboard();
+        renderYearTable();
+        renderDynamics();
+        renderHistory();
+      }
+    } catch(e) {
+      console.warn('Ошибка чтения кэша:', e);
+    }
+  }
+
+  // Загружаем остальные данные (категории, активы, позиции, настройки)
   Promise.all([
     loadCategories(),
-    loadTransactionsFast(from, to),
     loadAssets(),
     loadPositions(),
     loadSettings(),
   ]).then(() => {
-
-    // Даем браузеру сначала отрисовать интерфейс
-    requestAnimationFrame(() => {
-
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => loadTransactionsFull());
-      } else {
-        setTimeout(loadTransactionsFull, 50);
+    // Если кэша нет или он устарел — загружаем полные данные
+    if (!hasFullCache) {
+      // Сначала показываем текущий месяц (быстро)
+      loadTransactionsFast(from, to);
+      
+      // Затем в фоне загружаем всё
+      requestAnimationFrame(() => {
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(() => loadTransactionsFull());
+        } else {
+          setTimeout(loadTransactionsFull, 50);
+        }
+      });
+    } else {
+      // Если кэш есть — всё равно обновляем в фоне (но не чаще чем раз в 5 минут)
+      const cachedData = JSON.parse(cached);
+      if (Date.now() - cachedData.timestamp > 60000) { // 1 минута
+        setTimeout(loadTransactionsFull, 1000);
       }
-
-    });
-
+    }
   });
 }
 
@@ -1156,17 +1189,23 @@ async function loadCategories() {
   try { const r = await apiGet({action:'getCategories'}); S.categories = r.data||[]; renderCategoryChips(); renderSettingsCategories(); } catch(e){ errToast(e, 'категорий'); }
 }
 // быстрая загрузка — только текущий месяц
+// быстрая загрузка — только текущий месяц
 async function loadTransactionsFast(from, to) {
   try {
     const r = await apiGet({action:'getTransactions', from, to});
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
     S.transactionsLoaded = 'partial';
-    renderDashboard(); renderHistory();
-  } catch(e){ errToast(e, 'транзакций (быстрая)'); }
+    
+    // ⚠️ НЕ СОХРАНЯЕМ В КЭШ, чтобы не затереть полные данные
+    // localStorage.setItem('cache_getTransactions', ...) <- УБРАТЬ!
+    
+    renderDashboard(); 
+    renderHistory();
+  } catch(e){ 
+    errToast(e, 'транзакций (быстрая)'); 
+  }
 }
 
-// полная загрузка — все данные, в фоне
-// полная загрузка — все данные, в фоне
 // полная загрузка — все данные, в фоне
 async function loadTransactionsFull() {
   try {
@@ -1174,24 +1213,20 @@ async function loadTransactionsFull() {
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
     S.transactionsLoaded = 'full';
     
-    // ✅ ДОБАВИТЬ СОХРАНЕНИЕ В КЭШ
-    localStorage.setItem('cache_getTransactions', JSON.stringify({
-      timestamp: Date.now(),
-      data: r
-    }));
-    console.log('💾 Кэш getTransactions обновлён (полные данные)');
-
-    // Обновляем только открытую вкладку
-    const activePage = document.querySelector('.page.active')?.id;
-
-    if (activePage === 'page-dashboard') {
-      renderDashboard();
+    // ✅ ОБНОВЛЯЕМ КЭШ ПОЛНЫМИ ДАННЫМИ
+    try {
+      localStorage.setItem('cache_getTransactions', JSON.stringify({
+        timestamp: Date.now(),
+        data: r
+      }));
+      console.log('💾 Кэш getTransactions обновлён (полные данные):', S.transactions.length, 'записей');
+    } catch(e) {
+      console.warn('Ошибка сохранения кэша:', e);
     }
 
-    if (activePage === 'page-history') {
-      renderHistory();
-    }
-
+    // Обновляем все вкладки
+    renderDashboard();
+    renderHistory();
     renderYearTable();
     renderDynamics();
 
