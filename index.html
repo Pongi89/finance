@@ -922,6 +922,7 @@ const S = {
   isDemo: false,
   editType: 'expense', editCategory: null,
 };
+  const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 const DEMO_API_URL = 'https://script.google.com/macros/s/AKfycbxgPGnOdn48TfjyYya_RzcnTOAiZel3pu7_PH9MmFHLC_T9_HplcVznw6IlE0g2If1Q/exec';
 const BLOCK_LABELS = { account: 'Текущие счета', cushion: 'Подушка безопасности', bonds: 'Облигации', stocks: 'Акции', other: 'Прочее', passive: 'Пассивы' };
@@ -1088,11 +1089,42 @@ async function fetchWithTimeout(input, init = {}, timeout = 30000) {
 async function apiGet(params) {
   const url = new URL(S.apiUrl);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
+  
+  const cacheKey = 'cache_' + params.action;
+  const cached = localStorage.getItem(cacheKey);
+  
+  // Если есть кэш и он свежий — возвращаем мгновенно
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      if (Date.now() - data.timestamp < CACHE_TTL) {
+        console.log(`📦 Кэш для ${params.action}`);
+        return data.data;
+      }
+    } catch(e) {}
+  }
+  
   try {
     const res = await fetchWithTimeout(url.toString());
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const json = await res.json();
+    
+    // Сохраняем в кэш
+    localStorage.setItem(cacheKey, JSON.stringify({
+      timestamp: Date.now(),
+      data: json
+    }));
+    
+    return json;
   } catch(e) {
+    // При ошибке — используем старый кэш
+    if (cached) {
+      try {
+        const data = JSON.parse(cached);
+        console.warn('⚠️ Используем старый кэш');
+        return data.data;
+      } catch(e2) {}
+    }
     const msg = e.name==='AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка запроса: '+e.message;
     showToast(msg, 'error');
     throw e;
