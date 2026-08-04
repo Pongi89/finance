@@ -1167,11 +1167,19 @@ async function loadTransactionsFast(from, to) {
 
 // полная загрузка — все данные, в фоне
 // полная загрузка — все данные, в фоне
+// полная загрузка — все данные, в фоне
 async function loadTransactionsFull() {
   try {
     const r = await apiGet({action:'getTransactions'});
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
     S.transactionsLoaded = 'full';
+    
+    // ✅ ДОБАВИТЬ СОХРАНЕНИЕ В КЭШ
+    localStorage.setItem('cache_getTransactions', JSON.stringify({
+      timestamp: Date.now(),
+      data: r
+    }));
+    console.log('💾 Кэш getTransactions обновлён (полные данные)');
 
     // Обновляем только открытую вкладку
     const activePage = document.querySelector('.page.active')?.id;
