@@ -1468,12 +1468,17 @@ function renderYearSection(type, containerId) {
   const prevGrandAvg = monthsPresent.length ? prevGrandTotal / monthsPresent.length : 0;
 
   // --- Формируем массив строк для таблицы ---
+  const prevCatTotals = {};
+
+prevTxs.forEach(t => {
+  prevCatTotals[t.category] = (prevCatTotals[t.category] || 0) + t.amount;
+});
   let rows = categories.map(cat => {
     const total = catTotals[cat] || 0;
     const avg = monthsPresent.length ? total / monthsPresent.length : 0;
     const share = grandTotal ? (total / grandTotal * 100) : 0;
 
-    const prevCatTotal = prevTxs.filter(t => t.category === cat).reduce((s, t) => s + t.amount, 0);
+    const prevCatTotal = prevCatTotals[cat] || 0;
     const prevCatAvg = monthsPresent.length ? prevCatTotal / monthsPresent.length : 0;
     let delta = null;
     if (prevCatAvg > 0) {
