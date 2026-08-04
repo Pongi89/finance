@@ -1092,17 +1092,30 @@ async function loadTransactionsFast(from, to) {
 }
 
 // полная загрузка — все данные, в фоне
+// полная загрузка — все данные, в фоне
 async function loadTransactionsFull() {
   try {
-    const r = await apiGet({action:'getTransactions'});
+    const r = await apiGet({action:’getTransactions’});
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
-    S.transactionsLoaded = 'full';
-    // ... 
-    renderDashboard(); 
-    renderYearTable();  // ← Убедитесь, что эта строка ЕСТЬ
-    renderDynamics(); 
-    renderHistory();
-  } catch(e){ errToast(e, 'всех транзакций'); }
+    S.transactionsLoaded = ‘full’;
+
+    // Обновляем только открытую вкладку
+    const activePage = document.querySelector(‘.page.active’)?.id;
+
+    if (activePage === ‘page-dashboard’) {
+      renderDashboard();
+    }
+
+    if (activePage === ‘page-history’) {
+      renderHistory();
+    }
+
+    renderYearTable();
+    renderDynamics();
+
+  } catch(e){
+    errToast(e, ‘всех транзакций’);
+  }
 }
 
 // совместимость — полная загрузка по запросу
@@ -1113,6 +1126,7 @@ async function loadAssets() {
   try {
     const r = await apiGet({action:'getAssets'});
     S.assets = (r.data||[]).map(a=>({...a, amount: parseFloat(a.amount)||0, date: String(a.date).substring(0,10)}));
+    assetIndex = null;
     renderBalance();
     renderDashboard();
   } catch(e){ errToast(e, 'активов'); }
@@ -1186,15 +1200,42 @@ function renderDashboard() {
   const monthCutoff = lastDayOfMonth < today ? lastDayOfMonth : today;
   const isFutureMonth = `${S.dashYear}-${pad(S.dashMonth+1)}-01` > today;
 
-  const txs = getMonthTx();
-  const expenses = txs.filter(t=>t.type==='expense');
-  const incomes = txs.filter(t=>t.type==='income');
-  const mandatoryNames = S.categories.filter(c=>isMandatory(c)).map(c=>c.name);
+const txs = getMonthTx();
 
-  const totalExpense = expenses.reduce((s,t)=>s+t.amount,0);
-  const totalIncome = incomes.reduce((s,t)=>s+t.amount,0);
-  const mandatory = expenses.filter(t=>mandatoryNames.includes(t.category)).reduce((s,t)=>s+t.amount,0);
-  const optional = totalExpense - mandatory;
+const expenses = [];
+const incomes = [];
+
+const mandatoryNames = new Set(
+  S.categories
+    .filter(c => isMandatory(c))
+    .map(c => c.name)
+);
+
+let totalExpense = 0;
+let totalIncome = 0;
+let mandatory = 0;
+
+for (const t of txs) {
+
+  if (t.type === ‘expense’) {
+    expenses.push(t);
+    totalExpense += t.amount;
+
+    if (mandatoryNames.has(t.category)) {
+      mandatory += t.amount;
+    }
+
+  } else {
+
+    incomes.push(t);
+    totalIncome += t.amount;
+
+  }
+
+}
+
+const optional = totalExpense - mandatory;
+
 
   // Разница = Доходы − Расходы (операционный денежный поток)
   const delta = totalIncome - totalExpense;
@@ -1851,10 +1892,48 @@ function exportCSV() {
 // ============================================================
 // BALANCE
 // ============================================================
+let assetIndex = null;
+
+function buildAssetIndex() {
+
+  assetIndex = {};
+
+  for (const asset of S.assets) {
+
+    if (!assetIndex[asset.position_id]) {
+      assetIndex[asset.position_id] = [];
+    }
+
+    assetIndex[asset.position_id].push(asset);
+
+  }
+
+  for (const id in assetIndex) {
+    assetIndex[id].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+}
+
 function getLatestAsset(positionId, cutoff) {
-  const relevant=S.assets.filter(a=>a.position_id===positionId&&(!cutoff||a.date<=cutoff));
-  if(!relevant.length)return null;
-  return relevant.reduce((best,a)=>a.date>best.date?a:best);
+
+  if (!assetIndex) {
+    buildAssetIndex();
+  }
+
+  const list = assetIndex[positionId];
+  if (!list) return null;
+
+  if (!cutoff) {
+    return list[list.length - 1] || null;
+  }
+
+  for (let i = list.length - 1; i >= 0; i—) {
+    if (list[i].date <= cutoff) {
+      return list[i];
+    }
+  }
+
+  return null;
 }
 
 const BLOCK_COLORS = {
