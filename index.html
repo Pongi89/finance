@@ -1131,10 +1131,19 @@ async function apiGet(params) {
     try {
       const data = JSON.parse(cached);
       if (Date.now() - data.timestamp < CACHE_TTL) {
-        console.log(`📦 Кэш для ${params.action}`);
-        return data.data;
+        // ✅ Проверяем, что в кэше есть реальные данные
+        if (data.data && data.data.data && data.data.data.length > 0) {
+          console.log(`📦 Кэш для ${params.action}: ${data.data.data.length} записей`);
+          return data.data;
+        } else {
+          console.warn(`⚠️ Кэш для ${params.action} пустой, удаляем`);
+          localStorage.removeItem(cacheKey);
+        }
       }
-    } catch(e) {}
+    } catch(e) {
+      console.warn('Ошибка чтения кэша:', e);
+      localStorage.removeItem(cacheKey);
+    }
   }
   
   try {
@@ -1142,11 +1151,26 @@ async function apiGet(params) {
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     
-    // Сохраняем в кэш
-    localStorage.setItem(cacheKey, JSON.stringify({
-      timestamp: Date.now(),
-      data: json
-    }));
+    // ✅ Сохраняем в кэш ТОЛЬКО если есть данные
+    if (json.data && json.data.length > 0) {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        timestamp: Date.now(),
+        data: json
+      }));
+      console.log(`💾 Кэш сохранён для ${params.action}: ${json.data.length} записей`);
+    } else {
+      console.warn(`⚠️ Нет данных для ${params.action}, кэш не сохранён`);
+      // Если в кэше уже есть старые данные — оставляем их
+      if (cached) {
+        try {
+          const oldData = JSON.parse(cached);
+          if (oldData.data && oldData.data.data && oldData.data.data.length > 0) {
+            console.log(`📦 Возвращаем старый кэш для ${params.action}`);
+            return oldData.data;
+          }
+        } catch(e) {}
+      }
+    }
     
     return json;
   } catch(e) {
@@ -1154,9 +1178,13 @@ async function apiGet(params) {
     if (cached) {
       try {
         const data = JSON.parse(cached);
-        console.warn('⚠️ Используем старый кэш');
-        return data.data;
-      } catch(e2) {}
+        if (data.data && data.data.data && data.data.data.length > 0) {
+          console.warn(`⚠️ Ошибка, используем старый кэш для ${params.action}`);
+          return data.data;
+        }
+      } catch(e2) {
+        localStorage.removeItem(cacheKey);
+      }
     }
     const msg = e.name==='AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка запроса: '+e.message;
     showToast(msg, 'error');
