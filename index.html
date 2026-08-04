@@ -1927,7 +1927,7 @@ function getLatestAsset(positionId, cutoff) {
     return list[list.length - 1] || null;
   }
 
-  for (let i = list.length - 1; i >= 0; i—) {
+  for (let i = list.length - 1; i >= 0; i--) {
     if (list[i].date <= cutoff) {
       return list[i];
     }
