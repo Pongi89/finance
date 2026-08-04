@@ -1086,13 +1086,11 @@ async function loadTransactionsFull() {
     const r = await apiGet({action:'getTransactions'});
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
     S.transactionsLoaded = 'full';
-    // если данных нет за текущий год — переключаемся на последний год с данными
-    const years = [...new Set(S.transactions.map(t=>t.date.substring(0,4)))].sort();
-    if (years.length) {
-      if (!years.includes(String(S.viewYear))) { S.viewYear = +years[years.length-1]; updateYearLabel(); }
-      if (!years.includes(String(S.dashYear))) { S.dashYear = +years[years.length-1]; updateMonthLabel(); }
-    }
-    renderDashboard(); renderYearTable(); renderDynamics(); renderHistory();
+    // ... 
+    renderDashboard(); 
+    renderYearTable();  // ← Убедитесь, что эта строка ЕСТЬ
+    renderDynamics(); 
+    renderHistory();
   } catch(e){ errToast(e, 'всех транзакций'); }
 }
 
@@ -1323,9 +1321,19 @@ function renderMonthChart(expenses, incomes) {
 // ============================================================
 // ГОД
 // ============================================================
+// ============================================================
+// ГОД
+// ============================================================
 function renderYearTable() {
-  // Просто вызываем оптимизированную версию
-  renderYearTableOptimized();
+  // Если транзакций нет — показываем загрузку
+  if (!S.transactions || S.transactions.length === 0) {
+    document.getElementById('year-expense-container').innerHTML = '<div class="loader">Загрузка...</div>';
+    document.getElementById('year-income-container').innerHTML = '<div class="loader">Загрузка...</div>';
+    return;
+  }
+  // Просто рисуем таблицы из тех данных, что уже есть в памяти
+  renderYearSection('expense', 'year-expense-container');
+  renderYearSection('income', 'year-income-container');
 }
 
 // ============================================================
@@ -2424,10 +2432,11 @@ function showPage(name){
   if(name==='balance'){renderBalance();renderAssetInputList();}
   if(name==='settings'){renderSettingsCategories();renderPositionsList();}
 if(name==='year'){
-  // Используем оптимизированную загрузку
-  document.getElementById('year-expense-container').innerHTML='<div class="loader">Загрузка итогов года...</div>';
-  document.getElementById('year-income-container').innerHTML='<div class="loader">Загрузка итогов года...</div>';
-  renderYearTableOptimized();
+  // Показываем загрузчик
+  document.getElementById('year-expense-container').innerHTML = '<div class="loader">Загрузка...</div>';
+  document.getElementById('year-income-container').innerHTML = '<div class="loader">Загрузка...</div>';
+  // Просто вызываем рендер (он сам подхватит данные, когда они загрузятся)
+  renderYearTable();
 }
 }
 
@@ -3465,33 +3474,6 @@ async function renderAchievements() {
 // ОПТИМИЗАЦИЯ: БЫСТРАЯ ЗАГРУЗКА ИТОГОВ ГОДА
 // ============================================================
 
-async function loadYearSummary(year) {
-  try {
-    const r = await apiGet({action:'getYearSummary', year});
-    return r.data || { expense: {}, income: {}, expensePrev: {}, incomePrev: {} };
-  } catch(e) {
-    console.error('Ошибка загрузки итогов года:', e);
-    return { expense: {}, income: {}, expensePrev: {}, incomePrev: {} };
-  }
-}
-
-// Оптимизированная версия renderYearTable
-async function renderYearTableOptimized() {
-  // Ждём загрузки данных
-  if (!S.transactions || S.transactions.length === 0) {
-    console.log('⏳ Данные загружаются...');
-    document.getElementById('year-expense-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
-    document.getElementById('year-income-container').innerHTML = '<div class="loader">Загрузка данных...</div>';
-    setTimeout(renderYearTableOptimized, 2000);
-    return;
-  }
-  
-  // --- Ждём полной загрузки всех транзакций ---
-  if (S.transactionsLoaded !== 'full') {
-    console.log('⏳ Загружаем все транзакции для вкладки "Год"...');
-    await loadTransactionsFull();
-  }
-  
   // --- Расчёт FAIR показателей (только за последние 12 месяцев) ---
   const year = S.viewYear || new Date().getFullYear();
   const now = new Date();
