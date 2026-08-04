@@ -1065,7 +1065,7 @@ async function fetchWithTimeout(input, init = {}, timeout = 30000) {
            response.status === 429 ||
            response.status >= 500)) {
 
-        await new Promise(r => setTimeout(r, attempt  1000));
+        await new Promise(r => setTimeout(r, attempt * 1000));
         continue;
       }
 
@@ -1080,7 +1080,7 @@ async function fetchWithTimeout(input, init = {}, timeout = 30000) {
       }
 
       // Небольшая пауза перед повтором
-      await new Promise(r => setTimeout(r, attempt  1000));
+      await new Promise(r => setTimeout(r, attempt * 1000));
     }
   }
 }
