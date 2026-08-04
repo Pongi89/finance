@@ -999,7 +999,18 @@ function loadAll() {
     loadPositions(),
     loadSettings(),
   ]).then(() => {
-    loadTransactionsFull();
+
+    // Даем браузеру сначала отрисовать интерфейс
+    requestAnimationFrame(() => {
+
+      if (‘requestIdleCallback’ in window) {
+        requestIdleCallback(() => loadTransactionsFull());
+      } else {
+        setTimeout(loadTransactionsFull, 50);
+      }
+
+    });
+
   });
 }
 
