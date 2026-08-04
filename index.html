@@ -1003,7 +1003,7 @@ function loadAll() {
     // Даем браузеру сначала отрисовать интерфейс
     requestAnimationFrame(() => {
 
-      if (‘requestIdleCallback’ in window) {
+      if ('requestIdleCallback' in window) {
         requestIdleCallback(() => loadTransactionsFull());
       } else {
         setTimeout(loadTransactionsFull, 50);
@@ -1097,16 +1097,16 @@ async function loadTransactionsFull() {
   try {
     const r = await apiGet({action:'getTransactions'});
     S.transactions = (r.data||[]).map(t=>({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
-    S.transactionsLoaded = ‘full’;
+    S.transactionsLoaded = 'full';
 
     // Обновляем только открытую вкладку
     const activePage = document.querySelector('.page.active')?.id;
 
-    if (activePage === ‘page-dashboard’) {
+    if (activePage === 'page-dashboard') {
       renderDashboard();
     }
 
-    if (activePage === ‘page-history’) {
+    if (activePage === 'page-history') {
       renderHistory();
     }
 
@@ -1114,7 +1114,7 @@ async function loadTransactionsFull() {
     renderDynamics();
 
   } catch(e){
-    errToast(e, ‘всех транзакций’);
+    errToast(e, 'всех транзакций');
   }
 }
 
@@ -1217,7 +1217,7 @@ let mandatory = 0;
 
 for (const t of txs) {
 
-  if (t.type === ‘expense’) {
+  if (t.type === 'expense') {
     expenses.push(t);
     totalExpense += t.amount;
 
