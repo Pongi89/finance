@@ -1055,8 +1055,8 @@ function loadAll() {
       }
     }, 5000);
   });
-}
-
+} // <-- ЭТО ЗАКРЫВАЕТ ФУНКЦИЮ loadAll()
+  
 function exitDemo() {
   localStorage.removeItem('demo_mode');
   S.apiUrl = localStorage.getItem('real_api_url');
