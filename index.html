@@ -660,7 +660,17 @@ th.sortable.sorted-desc::after {
       </div>
     </div>
   </div>
-
+  
+ <div class="card">
+    <div class="card-title">Управление данными</div>
+    <button class="btn btn-primary" onclick="hardRefresh()" style="width:auto;padding:8px 18px;">
+      🔄 Перезагрузить все данные
+    </button>
+    <div style="font-size:12px;color:var(--text2);margin-top:8px;">
+      Используйте, если данные отображаются не полностью
+    </div>
+  </div>
+  
   <div class="card">
     <div class="card-title">Расчёт капитала</div>
     <select class="form-input" id="setting-capital" onchange="saveSetting('capital_calculation',this.value)">
@@ -1000,23 +1010,53 @@ function loadAll() {
   if (cached) {
     try {
       const data = JSON.parse(cached);
-      if (Date.now() - data.timestamp < CACHE_TTL && data.data && data.data.data) {
+      if (Date.now() - data.timestamp < CACHE_TTL && data.data && data.data.data && data.data.data.length > 0) {
         hasFullCache = true;
-        // Сразу показываем полные данные из кэша
         S.transactions = data.data.data.map(t => ({...t, amount: parseFloat(t.amount)||0, date: String(t.date).substring(0,10)}));
         S.transactionsLoaded = 'full';
         console.log(`📦 Полные данные из кэша: ${S.transactions.length} записей`);
-        
-        // Сразу рендерим всё
-        renderDashboard();
-        renderYearTable();
-        renderDynamics();
-        renderHistory();
+        renderAll();
+      } else {
+        // Кэш пустой или устарел — удаляем
+        console.warn('⚠️ Кэш пустой или устарел, удаляем');
+        localStorage.removeItem('cache_getTransactions');
       }
     } catch(e) {
       console.warn('Ошибка чтения кэша:', e);
+      localStorage.removeItem('cache_getTransactions');
     }
   }
+
+  // Загружаем остальные данные
+  Promise.all([
+    loadCategories(),
+    loadAssets(),
+    loadPositions(),
+    loadSettings(),
+  ]).then(() => {
+    if (!hasFullCache) {
+      loadTransactionsFast(from, to);
+      requestAnimationFrame(() => {
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(() => loadTransactionsFull());
+        } else {
+          setTimeout(loadTransactionsFull, 50);
+        }
+      });
+    } else {
+      // Фоновое обновление
+      setTimeout(loadTransactionsFull, 2000);
+    }
+    
+    // ✅ Проверяем данные через 5 секунд
+    setTimeout(async () => {
+      if (!S.transactions || S.transactions.length === 0) {
+        console.warn('⚠️ Данные не загрузились, пробуем восстановить...');
+        await recoverFromEmptyData();
+      }
+    }, 5000);
+  });
+}
 
   // Загружаем остальные данные (категории, активы, позиции, настройки)
   Promise.all([
@@ -3779,6 +3819,106 @@ window.loadTransactionsFull = async function() {
 };
 
 console.log('✅ loadTransactionsFull обновлена');
+
+  // ============================================================
+// ВОССТАНОВЛЕНИЕ ПРИ ПУСТЫХ ДАННЫХ
+// ============================================================
+
+async function recoverFromEmptyData() {
+  console.log('🔄 Проверка данных...');
+  
+  // Проверяем, есть ли данные
+  if (!S.transactions || S.transactions.length === 0) {
+    console.warn('⚠️ Данные пустые, пробуем восстановить');
+    
+    // Пробуем загрузить из кэша
+    const cached = localStorage.getItem('cache_getTransactions');
+    if (cached) {
+      try {
+        const data = JSON.parse(cached);
+        if (data.data && data.data.data && data.data.data.length > 0) {
+          console.log(`📦 Восстановлено из кэша: ${data.data.data.length} записей`);
+          S.transactions = data.data.data.map(t => ({
+            ...t,
+            amount: parseFloat(t.amount) || 0,
+            date: String(t.date).substring(0,10)
+          }));
+          S.transactionsLoaded = 'full';
+          renderAll();
+          return true;
+        } else {
+          console.warn('⚠️ Кэш пустой, удаляем');
+          localStorage.removeItem('cache_getTransactions');
+        }
+      } catch(e) {
+        console.warn('Ошибка восстановления из кэша:', e);
+        localStorage.removeItem('cache_getTransactions');
+      }
+    }
+    
+    // Если кэша нет или он пустой — пробуем загрузить заново
+    console.log('🔄 Пробуем загрузить данные заново...');
+    try {
+      await loadTransactionsFull();
+      if (S.transactions && S.transactions.length > 0) {
+        console.log(`✅ Загружено ${S.transactions.length} записей`);
+        renderAll();
+        return true;
+      }
+    } catch(e) {
+      console.error('Ошибка загрузки:', e);
+    }
+    
+    // Если ничего не помогло — показываем сообщение
+    showToast('Не удалось загрузить данные. Проверьте подключение.', 'error');
+    return false;
+  }
+  
+  console.log(`✅ Данные есть: ${S.transactions.length} записей`);
+  return true;
+}
+
+function renderAll() {
+  renderDashboard();
+  renderHistory();
+  renderYearTable();
+  renderDynamics();
+}
+
+// ============================================================
+// ПРИНУДИТЕЛЬНАЯ ПЕРЕЗАГРУЗКА ДАННЫХ
+// ============================================================
+
+async function hardRefresh() {
+  console.log('🔄 Принудительная перезагрузка...');
+  
+  // Удаляем все кэши
+  Object.keys(localStorage)
+    .filter(key => key.startsWith('cache_'))
+    .forEach(key => {
+      console.log('🗑️ Удаляем:', key);
+      localStorage.removeItem(key);
+    });
+  
+  showToast('Обновление данных...', 'success');
+  
+  // Очищаем память
+  S.transactions = [];
+  S.transactionsLoaded = 'none';
+  
+  // Загружаем заново
+  await loadTransactionsFull();
+  
+  if (S.transactions && S.transactions.length > 0) {
+    showToast(`Загружено ${S.transactions.length} записей`, 'success');
+    renderAll();
+  } else {
+    showToast('Не удалось загрузить данные', 'error');
+  }
+}
+
+console.log('✅ Функции восстановления данных загружены');
+  
 </script>
 </body>
 </html>
