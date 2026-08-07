@@ -2787,7 +2787,7 @@ function showToast(msg,type='success'){
 // ГРАФИК КАТЕГОРИИ ЗА ГОД (при клике на категорию)
 // ============================================================
 
-function showCategoryYearChart(categoryName) {
+function showCategoryYearChart(categoryName, type = 'expense') {
   // Создаём модальное окно
   const modal = document.createElement('div');
   modal.style.cssText = `
@@ -2802,9 +2802,13 @@ function showCategoryYearChart(categoryName) {
     border-radius: 16px; padding: 24px; max-width: 600px; width: 90%;
     max-height: 80vh; overflow-y: auto;
   `;
+  
+  const typeLabel = type === 'expense' ? 'Расходы' : 'Доходы';
+  const color = type === 'expense' ? '#fc8181' : '#48bb78';
+  
   box.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h3 style="font-size:18px; margin:0; color:var(--text);">📊 ${categoryName}</h3>
+      <h3 style="font-size:18px; margin:0; color:var(--text);">📊 ${categoryName} (${typeLabel})</h3>
       <button onclick="this.closest('div[style]').parentElement.remove()" 
               style="background:transparent; border:none; color:var(--text2); font-size:24px; cursor:pointer;">✕</button>
     </div>
@@ -2823,7 +2827,7 @@ function showCategoryYearChart(categoryName) {
   const totalMonths = [];
 
   S.transactions.forEach(t => {
-    if (t.category === categoryName && t.type === 'expense') {
+    if (t.category === categoryName && t.type === type) {
       const tYear = parseInt(t.date.substring(0, 4));
       const tMonth = parseInt(t.date.substring(5, 7));
       if (tYear === year) {
@@ -2844,11 +2848,11 @@ function showCategoryYearChart(categoryName) {
   const datasets = [{
     label: `${year}`,
     data: data,
-    borderColor: '#6c63ff',
-    backgroundColor: 'rgba(108, 99, 255, 0.1)',
+    borderColor: color,
+    backgroundColor: color + '33',
     fill: true,
     tension: 0.3,
-    pointBackgroundColor: '#6c63ff',
+    pointBackgroundColor: color,
     pointRadius: 4,
   }];
 
@@ -2930,7 +2934,8 @@ function showCategoryYearChart(categoryName) {
 // ============================================================
 
 function patchCategoryClicks() {
-  document.querySelectorAll('#page-year .year-table td:first-child').forEach(el => {
+  // Для таблицы расходов
+  document.querySelectorAll('#year-expense-container .year-table td:first-child').forEach(el => {
     if (!el.dataset.listener) {
       el.dataset.listener = 'true';
       el.style.cursor = 'pointer';
@@ -2938,7 +2943,22 @@ function patchCategoryClicks() {
       el.addEventListener('click', function() {
         const categoryName = this.textContent.trim();
         if (categoryName && categoryName !== 'ИТОГО' && categoryName !== 'Категория') {
-          showCategoryYearChart(categoryName);
+          showCategoryYearChart(categoryName, 'expense');
+        }
+      });
+    }
+  });
+  
+  // Для таблицы доходов
+  document.querySelectorAll('#year-income-container .year-table td:first-child').forEach(el => {
+    if (!el.dataset.listener) {
+      el.dataset.listener = 'true';
+      el.style.cursor = 'pointer';
+      el.title = 'Нажмите для графика по месяцам';
+      el.addEventListener('click', function() {
+        const categoryName = this.textContent.trim();
+        if (categoryName && categoryName !== 'ИТОГО' && categoryName !== 'Категория') {
+          showCategoryYearChart(categoryName, 'income');
         }
       });
     }
