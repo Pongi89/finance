@@ -444,7 +444,7 @@ th.sortable.sorted-desc::after {
       </div>
       <div class="form-group">
         <div class="form-label">Сумма</div>
-        <input type="text" class="form-input" id="input-amount" placeholder="0 или 43+43+43" oninput="calcAmount()" inputmode="decimal" autocomplete="off">
+        <input type="text" class="form-input" id="input-amount" placeholder="0 или 43+43+43" oninput="calcAmount()" inputmode="numeric" autocomplete="off" pattern="-?[0-9]*">
         <div class="calc-hint" id="calc-hint"></div>
       </div>
       <div class="form-group full">
@@ -810,7 +810,7 @@ th.sortable.sorted-desc::after {
       </div>
       <div class="form-group">
         <div class="form-label">Сумма</div>
-        <input type="text" class="form-input" id="edit-amount" placeholder="0" oninput="editCalcAmount()" inputmode="decimal" autocomplete="off">
+        <input type="text" class="form-input" id="edit-amount" placeholder="0" oninput="editCalcAmount()" inputmode="numeric" autocomplete="off" pattern="-?[0-9]*">
         <div class="calc-hint" id="edit-calc-hint"></div>
       </div>
       <div class="form-group full">
