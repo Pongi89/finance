@@ -3104,6 +3104,67 @@ function renderYearlyReview(year) {
         ${topCategory ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самая затратная категория</span><br><span style="font-weight:600;font-size:16px;">${topCategory[0]}</span> <span style="color:var(--text2);font-size:13px;">(${fmt(topCategory[1])})</span></div>` : ''}
         ${mostUsedCategory ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самая часто используемая категория</span><br><span style="font-weight:600;font-size:16px;">${mostUsedCategory[0]}</span> <span style="color:var(--text2);font-size:13px;">(${mostUsedCategory[1]} раз)</span></div>` : ''}
         ${busiestDay ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">День с наибольшим количеством покупок</span><br><span style="font-weight:600;font-size:16px;">${formatDate(busiestDay[0])}</span> <span style="color:var(--text2);font-size:13px;">(${busiestDay[1]} покупок)</span></div>` : ''}
+         <!-- ========== НОВЫЕ РЕКОРДЫ ========== -->
+  ${(() => {
+    // --- Доходы превысили расходы (количество месяцев) ---
+    const monthlyCashFlow = {};
+    tx.forEach(t => {
+      const month = t.date.substring(0, 7);
+      if (!monthlyCashFlow[month]) monthlyCashFlow[month] = { income: 0, expense: 0 };
+      if (t.type === 'income') monthlyCashFlow[month].income += t.amount;
+      else monthlyCashFlow[month].expense += t.amount;
+    });
+    const positiveMonths = Object.values(monthlyCashFlow).filter(m => m.income > m.expense).length;
+    
+    // --- Новый минимум расходов ---
+    const monthlyExpense = {};
+    tx.filter(t => t.type === 'expense').forEach(t => {
+      const month = t.date.substring(0, 7);
+      monthlyExpense[month] = (monthlyExpense[month] || 0) + t.amount;
+    });
+    const minExpense = Math.min(...Object.values(monthlyExpense), Infinity);
+    const minMonth = Object.keys(monthlyExpense).find(key => monthlyExpense[key] === minExpense);
+    
+    // --- Рекорд сбережений ---
+    const monthlySavings = {};
+    tx.forEach(t => {
+      const month = t.date.substring(0, 7);
+      if (!monthlySavings[month]) monthlySavings[month] = 0;
+      if (t.type === 'income') monthlySavings[month] += t.amount;
+      else monthlySavings[month] -= t.amount;
+    });
+    const maxSavings = Math.max(...Object.values(monthlySavings), -Infinity);
+    const maxMonth = Object.keys(monthlySavings).find(key => monthlySavings[key] === maxSavings);
+    
+    let html = '';
+    
+    if (positiveMonths > 0) {
+      html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
+        <span style="color:var(--text2);">Месяцев с доходом > расходов</span>
+        <br><span style="font-weight:600;font-size:16px;">${positiveMonths} из 12</span>
+        <span style="color:var(--text2);font-size:13px;"> (${(positiveMonths/12*100).toFixed(0)}% года)</span>
+      </div>`;
+    }
+    
+    if (minExpense !== Infinity && minMonth) {
+      html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
+        <span style="color:var(--text2);">Самый экономный месяц</span>
+        <br><span style="font-weight:600;font-size:16px;">${formatMonth(minMonth)}</span>
+        <span style="color:var(--text2);font-size:13px;"> (${fmt(minExpense)})</span>
+      </div>`;
+    }
+    
+    if (maxSavings > 0 && maxMonth) {
+      html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
+        <span style="color:var(--text2);">Рекорд сбережений за месяц</span>
+        <br><span style="font-weight:600;font-size:16px;">${formatMonth(maxMonth)}</span>
+        <span style="color:var(--text2);font-size:13px;"> (${fmt(maxSavings)})</span>
+      </div>`;
+    }
+    
+    return html;
+  })()}
+  <!-- ========== КОНЕЦ НОВЫХ РЕКОРДОВ ========== -->
       </div>
       <div class="card">
         <div class="card-title">🆕 Новые рекорды!</div>
