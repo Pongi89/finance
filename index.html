@@ -3096,17 +3096,51 @@ function renderYearlyReview(year) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
       <div class="card">
-        <div class="card-title">🏅 Рекорды года</div>
-        ${mostExpensive ? `<div style="padding:4px 0;"><span style="color:var(--text2);">Самая дорогая покупка</span><br><span style="font-weight:600;font-size:16px;">${fmt(mostExpensive.amount)}</span> <span style="color:var(--text2);font-size:13px;">(${mostExpensive.category})</span></div>` : ''}
-        ${highestIncome ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самый большой доход</span><br><span style="font-weight:600;font-size:16px;">${fmt(highestIncome.amount)}</span> <span style="color:var(--text2);font-size:13px;">(${highestIncome.category})</span></div>` : ''}
-        ${bestMonth ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самый прибыльный месяц</span><br><span style="font-weight:600;font-size:16px;">${formatMonth(bestMonth[0])}</span> <span style="color:var(--text2);font-size:13px;">(${fmt(bestMonth[1])})</span></div>` : ''}
-        ${worstMonth ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самый затратный месяц</span><br><span style="font-weight:600;font-size:16px;">${formatMonth(worstMonth[0])}</span> <span style="color:var(--text2);font-size:13px;">(${fmt(worstMonth[1])})</span></div>` : ''}
-        ${topCategory ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самая затратная категория</span><br><span style="font-weight:600;font-size:16px;">${topCategory[0]}</span> <span style="color:var(--text2);font-size:13px;">(${fmt(topCategory[1])})</span></div>` : ''}
-        ${mostUsedCategory ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самая часто используемая категория</span><br><span style="font-weight:600;font-size:16px;">${mostUsedCategory[0]}</span> <span style="color:var(--text2);font-size:13px;">(${mostUsedCategory[1]} раз)</span></div>` : ''}
-        ${busiestDay ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">День с наибольшим количеством покупок</span><br><span style="font-weight:600;font-size:16px;">${formatDate(busiestDay[0])}</span> <span style="color:var(--text2);font-size:13px;">(${busiestDay[1]} покупок)</span></div>` : ''}
-         <!-- ========== НОВЫЕ РЕКОРДЫ ========== -->
+  <div class="card-title">🏅 Рекорды года</div>
+  
+  <!-- 1. Самая дорогая покупка -->
+  ${mostExpensive ? `<div style="padding:4px 0;"><span style="color:var(--text2);">Самая дорогая покупка</span><br><span style="font-weight:600;font-size:16px;">${fmt(mostExpensive.amount)}</span> <span style="color:var(--text2);font-size:13px;">(${mostExpensive.category})</span></div>` : ''}
+  
+  <!-- 2. Самый большой доход -->
+  ${highestIncome ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самый большой доход</span><br><span style="font-weight:600;font-size:16px;">${fmt(highestIncome.amount)}</span> <span style="color:var(--text2);font-size:13px;">(${highestIncome.category})</span></div>` : ''}
+  
+  <!-- 3. Самый прибыльный месяц -->
+  ${bestMonth ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самый прибыльный месяц</span><br><span style="font-weight:600;font-size:16px;">${formatMonth(bestMonth[0])}</span> <span style="color:var(--text2);font-size:13px;">(${fmt(bestMonth[1])})</span></div>` : ''}
+  
+  <!-- 4. Самый затратный месяц -->
+  ${worstMonth ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самый затратный месяц</span><br><span style="font-weight:600;font-size:16px;">${formatMonth(worstMonth[0])}</span> <span style="color:var(--text2);font-size:13px;">(${fmt(worstMonth[1])})</span></div>` : ''}
+  
+  <!-- 5. Самый экономный месяц ← ПЕРЕМЕЩЁН СЮДА -->
   ${(() => {
-    // --- Доходы превысили расходы (количество месяцев) ---
+    const monthlyExpense = {};
+    tx.filter(t => t.type === 'expense').forEach(t => {
+      const month = t.date.substring(0, 7);
+      monthlyExpense[month] = (monthlyExpense[month] || 0) + t.amount;
+    });
+    const minExpense = Math.min(...Object.values(monthlyExpense), Infinity);
+    const minMonth = Object.keys(monthlyExpense).find(key => monthlyExpense[key] === minExpense);
+    let html = '';
+    if (minExpense !== Infinity && minMonth) {
+      html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
+        <span style="color:var(--text2);">Самый экономный месяц</span>
+        <br><span style="font-weight:600;font-size:16px;">${formatMonth(minMonth)}</span>
+        <span style="color:var(--text2);font-size:13px;"> (${fmt(minExpense)})</span>
+      </div>`;
+    }
+    return html;
+  })()}
+  
+  <!-- 6. Самая затратная категория -->
+  ${topCategory ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самая затратная категория</span><br><span style="font-weight:600;font-size:16px;">${topCategory[0]}</span> <span style="color:var(--text2);font-size:13px;">(${fmt(topCategory[1])})</span></div>` : ''}
+  
+  <!-- 7. Самая часто используемая категория -->
+  ${mostUsedCategory ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">Самая часто используемая категория</span><br><span style="font-weight:600;font-size:16px;">${mostUsedCategory[0]}</span> <span style="color:var(--text2);font-size:13px;">(${mostUsedCategory[1]} раз)</span></div>` : ''}
+  
+  <!-- 8. День с наибольшим количеством покупок -->
+  ${busiestDay ? `<div style="padding:4px 0;border-top:1px solid var(--border);"><span style="color:var(--text2);">День с наибольшим количеством покупок</span><br><span style="font-weight:600;font-size:16px;">${formatDate(busiestDay[0])}</span> <span style="color:var(--text2);font-size:13px;">(${busiestDay[1]} покупок)</span></div>` : ''}
+  
+  <!-- 9. Месяцев с доходом > расходов -->
+  ${(() => {
     const monthlyCashFlow = {};
     tx.forEach(t => {
       const month = t.date.substring(0, 7);
@@ -3115,17 +3149,19 @@ function renderYearlyReview(year) {
       else monthlyCashFlow[month].expense += t.amount;
     });
     const positiveMonths = Object.values(monthlyCashFlow).filter(m => m.income > m.expense).length;
-    
-    // --- Новый минимум расходов ---
-    const monthlyExpense = {};
-    tx.filter(t => t.type === 'expense').forEach(t => {
-      const month = t.date.substring(0, 7);
-      monthlyExpense[month] = (monthlyExpense[month] || 0) + t.amount;
-    });
-    const minExpense = Math.min(...Object.values(monthlyExpense), Infinity);
-    const minMonth = Object.keys(monthlyExpense).find(key => monthlyExpense[key] === minExpense);
-    
-    // --- Рекорд сбережений ---
+    let html = '';
+    if (positiveMonths > 0) {
+      html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
+        <span style="color:var(--text2);">Месяцев с доходом > расходов</span>
+        <br><span style="font-weight:600;font-size:16px;">${positiveMonths} из 12</span>
+        <span style="color:var(--text2);font-size:13px;"> (${(positiveMonths/12*100).toFixed(0)}% года)</span>
+      </div>`;
+    }
+    return html;
+  })()}
+  
+  <!-- 10. Рекорд сбережений за месяц -->
+  ${(() => {
     const monthlySavings = {};
     tx.forEach(t => {
       const month = t.date.substring(0, 7);
@@ -3135,25 +3171,7 @@ function renderYearlyReview(year) {
     });
     const maxSavings = Math.max(...Object.values(monthlySavings), -Infinity);
     const maxMonth = Object.keys(monthlySavings).find(key => monthlySavings[key] === maxSavings);
-    
     let html = '';
-    
-    if (positiveMonths > 0) {
-      html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
-        <span style="color:var(--text2);">Месяцев с доходом > расходов</span>
-        <br><span style="font-weight:600;font-size:16px;">${positiveMonths} из 12</span>
-        <span style="color:var(--text2);font-size:13px;"> (${(positiveMonths/12*100).toFixed(0)}% года)</span>
-      </div>`;
-    }
-    
-    if (minExpense !== Infinity && minMonth) {
-      html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
-        <span style="color:var(--text2);">Самый экономный месяц</span>
-        <br><span style="font-weight:600;font-size:16px;">${formatMonth(minMonth)}</span>
-        <span style="color:var(--text2);font-size:13px;"> (${fmt(minExpense)})</span>
-      </div>`;
-    }
-    
     if (maxSavings > 0 && maxMonth) {
       html += `<div style="padding:4px 0;border-top:1px solid var(--border);">
         <span style="color:var(--text2);">Рекорд сбережений за месяц</span>
@@ -3161,12 +3179,9 @@ function renderYearlyReview(year) {
         <span style="color:var(--text2);font-size:13px;"> (${fmt(maxSavings)})</span>
       </div>`;
     }
-    
     return html;
   })()}
-  <!-- ========== КОНЕЦ НОВЫХ РЕКОРДОВ ========== -->
-      </div>
-      <div class="card">
+</div>      <div class="card">
         <div class="card-title">🆕 Новые рекорды!</div>
         ${records.length > 0 ? records.map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);"><span style="color:var(--accent);font-weight:600;">🏆 ${r.label}</span><br><span style="font-size:15px;font-weight:600;color:var(--text);">${r.value}</span> <span style="color:var(--text2);font-size:13px;">${r.context || ''}</span></div>`).join('') : '<div style="color:var(--text2);">Нет новых рекордов в этом году</div>'}
       </div>
