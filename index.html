@@ -3193,142 +3193,135 @@ function renderYearlyReview(year) {
         ${generateInsights(totalIncome, totalExpense, incomeChange, expenseChange, savingsRate, prevSavingsRate, year)}
       </div>
     </div>
-  `;
-// ============================================================
-// МОТИВАЦИОННЫЕ ВЫВОДЫ (ТОЛЬКО УНИКАЛЬНЫЕ)
-// ============================================================
+    <!-- ========================================================== -->
+  <!-- БЛОК МОТИВАЦИИ (ПЕРЕНЕСЁН СЮДА) -->
+  <!-- ========================================================== -->
+  <div class="card">
+    <div class="card-title">💪 Мотивация</div>
+    <div style="font-size:14px;line-height:1.8;color:var(--text2);">
+      ${(() => {
+        const insights = [];
+        
+        // --- 1. Расходы по категориям за год ---
+        const expenseByCategory = {};
+        tx.filter(t => t.type === 'expense').forEach(t => {
+          const cat = t.category || 'Без категории';
+          expenseByCategory[cat] = (expenseByCategory[cat] || 0) + t.amount;
+        });
+        const sortedExpenses = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]);
+        
+        // --- 2. Пассивный доход ---
+        const passiveIncomeCategories = getPassiveCategoryNames();
+        const passiveIncome = tx
+          .filter(t => t.type === 'income' && passiveIncomeCategories.includes(t.category))
+          .reduce((s, t) => s + t.amount, 0);
+        
+        // --- 3. Обязательные расходы ---
+        const mandatoryCategories = S.categories.filter(c => isMandatory(c)).map(c => c.name);
+        const mandatoryExpense = tx
+          .filter(t => t.type === 'expense' && mandatoryCategories.includes(t.category))
+          .reduce((s, t) => s + t.amount, 0);
+        
+        // --- 4. Что покрывает пассивный доход ---
+        if (passiveIncome > 0 && sortedExpenses.length > 0) {
+          let remaining = passiveIncome;
+          let covered = [];
+          let partiallyCovered = null;
+          
+          for (const [category, amount] of sortedExpenses) {
+            if (remaining >= amount) {
+              covered.push({ category, amount });
+              remaining -= amount;
+            } else if (remaining > 0) {
+              partiallyCovered = { category, total: amount, covered: remaining };
+              remaining = 0;
+              break;
+            }
+          }
+          
+          if (covered.length > 0 || partiallyCovered) {
+            let text = `💸 Ваш пассивный доход (${fmt(passiveIncome)}) покрывает: `;
+            const items = covered.map(c => `${c.category} (${fmt(c.amount)})`);
+            if (partiallyCovered) {
+              const pct = (partiallyCovered.covered / partiallyCovered.total * 100);
+              items.push(`${fmt(partiallyCovered.covered)} из ${partiallyCovered.category} (${pct.toFixed(0)}%)`);
+            }
+            text += items.join(', ');
+            insights.push(text);
+          }
+        }
+        
+        // --- 5. Пассивный доход vs обязательные расходы ---
+        if (passiveIncome > 0 && mandatoryExpense > 0) {
+          const pct = (passiveIncome / mandatoryExpense * 100);
+          if (pct >= 100) {
+            insights.push(`🎉 Пассивный доход ПОЛНОСТЬЮ покрывает обязательные расходы (${fmt(mandatoryExpense)})! Вы финансово независимы! 🏆`);
+          } else if (pct >= 70) {
+            insights.push(`💪 Пассивный доход покрывает ${pct.toFixed(0)}% обязательных расходов. Осталось всего ${fmt(mandatoryExpense - passiveIncome)}!`);
+          } else if (pct >= 50) {
+            insights.push(`📈 Пассивный доход покрывает ${pct.toFixed(0)}% обязательных расходов (${fmt(mandatoryExpense)}). Отличный прогресс!`);
+          } else if (pct >= 25) {
+            insights.push(`🌱 Пассивный доход покрывает ${pct.toFixed(0)}% обязательных расходов. Продолжайте в том же духе!`);
+          }
+        }
+        
+        // --- 6. Сбережения (подушка безопасности) ---
+        if (savings > 0) {
+          const monthsToLive = Math.round(savings / (totalExpense / 12));
+          if (monthsToLive >= 12) {
+            insights.push(`💰 Подушка безопасности — ${monthsToLive} месяцев (${fmt(savings)}). Отличный результат!`);
+          } else if (monthsToLive >= 6) {
+            insights.push(`💰 Подушка безопасности — ${monthsToLive} месяцев (${fmt(savings)}). Вы на правильном пути!`);
+          } else if (monthsToLive >= 3) {
+            insights.push(`💰 Подушка безопасности — ${monthsToLive} месяца (${fmt(savings)}). Рекомендуемая цель — 6 месяцев.`);
+          } else if (monthsToLive > 0) {
+            insights.push(`💰 Подушка безопасности — ${monthsToLive} месяца (${fmt(savings)}). Попробуйте накопить на 3 месяца.`);
+          }
+        }
+        
+        // --- 7. Среднедневные показатели ---
+        if (totalIncome > 0) {
+          const incomePerDay = totalIncome / 365;
+          insights.push(`📈 Среднедневной доход: ${fmt(incomePerDay)}`);
+        }
+        if (totalExpense > 0) {
+          const expensePerDay = totalExpense / 365;
+          insights.push(`📉 Среднедневные расходы: ${fmt(expensePerDay)}`);
+        }
+        if (savings > 0) {
+          const savingsPerDay = savings / 365;
+          insights.push(`💪 Ежедневно вы откладываете ${fmt(savingsPerDay)}`);
+        }
+        
+        // --- 8. Соотношение доходов и расходов ---
+        if (totalIncome > 0 && totalExpense > 0) {
+          const ratio = totalExpense / totalIncome;
+          if (ratio < 0.5) {
+            insights.push(`🏆 Вы тратите всего ${(ratio * 100).toFixed(0)}% дохода — блестящий результат!`);
+          } else if (ratio < 0.7) {
+            insights.push(`✅ Вы тратите ${(ratio * 100).toFixed(0)}% дохода. Отличный баланс!`);
+          } else if (ratio > 0.9) {
+            insights.push(`📉 Вы тратите ${(ratio * 100).toFixed(0)}% дохода. Попробуйте сократить расходы на 10-15%.`);
+          }
+        }
+        
+        // --- 9. Мотивация на следующий год ---
+        if (savings > 0 && mandatoryExpense > 0) {
+          const monthsOfFreedom = Math.round(savings / (mandatoryExpense / 12));
+          if (monthsOfFreedom > 0) {
+            insights.push(`🎯 При сохранении текущего уровня сбережений, через ${monthsOfFreedom} месяцев пассивный доход сможет покрыть обязательные расходы`);
+          }
+        }
+        
+        return insights.map(i => `<div style="padding:6px 0;border-bottom:1px solid var(--border);">${i}</div>`).join('');
+      })()}
+    </div>
+  </div>
+`; // ← ЗДЕСЬ ЗАКАНЧИВАЕТСЯ html
 
-function getMotivationalInsights() {
-  const insights = [];
+container.innerHTML = html;
   
-  // --- 1. Расходы по категориям за год ---
-  const expenseByCategory = {};
-  tx.filter(t => t.type === 'expense').forEach(t => {
-    const cat = t.category || 'Без категории';
-    expenseByCategory[cat] = (expenseByCategory[cat] || 0) + t.amount;
-  });
-  
-  const sortedExpenses = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]);
-  
-  // --- 2. Пассивный доход ---
-  const passiveIncomeCategories = getPassiveCategoryNames();
-  const passiveIncome = tx
-    .filter(t => t.type === 'income' && passiveIncomeCategories.includes(t.category))
-    .reduce((s, t) => s + t.amount, 0);
-  
-  // --- 3. Обязательные расходы ---
-  const mandatoryCategories = S.categories.filter(c => isMandatory(c)).map(c => c.name);
-  const mandatoryExpense = tx
-    .filter(t => t.type === 'expense' && mandatoryCategories.includes(t.category))
-    .reduce((s, t) => s + t.amount, 0);
-  
-  // --- 4. Что покрывает пассивный доход (из реальных категорий) ---
-  if (passiveIncome > 0 && sortedExpenses.length > 0) {
-    let remaining = passiveIncome;
-    let covered = [];
-    let partiallyCovered = null;
-    
-    for (const [category, amount] of sortedExpenses) {
-      if (remaining >= amount) {
-        covered.push({ category, amount });
-        remaining -= amount;
-      } else if (remaining > 0) {
-        // Запоминаем частично покрытую категорию
-        partiallyCovered = { category, total: amount, covered: remaining };
-        remaining = 0;
-        break;
-      }
-    }
-    
-    if (covered.length > 0 || partiallyCovered) {
-      let text = `💸 Ваш пассивный доход (${fmt(passiveIncome)}) покрывает: `;
-      const items = covered.map(c => `${c.category} (${fmt(c.amount)})`);
-      
-      if (partiallyCovered) {
-        const pct = (partiallyCovered.covered / partiallyCovered.total * 100);
-        items.push(`${fmt(partiallyCovered.covered)} из ${partiallyCovered.category} (${pct.toFixed(0)}%)`);
-      }
-      
-      text += items.join(', ');
-      insights.push(text);
-    }
-  }
-  
-  // --- 5. Пассивный доход vs обязательные расходы ---
-  if (passiveIncome > 0 && mandatoryExpense > 0) {
-    const pct = (passiveIncome / mandatoryExpense * 100);
-    if (pct >= 100) {
-      insights.push(`🎉 Пассивный доход ПОЛНОСТЬЮ покрывает обязательные расходы (${fmt(mandatoryExpense)})! Вы финансово независимы! 🏆`);
-    } else if (pct >= 70) {
-      insights.push(`💪 Пассивный доход покрывает ${pct.toFixed(0)}% обязательных расходов. Осталось всего ${fmt(mandatoryExpense - passiveIncome)}!`);
-    } else if (pct >= 50) {
-      insights.push(`📈 Пассивный доход покрывает ${pct.toFixed(0)}% обязательных расходов (${fmt(mandatoryExpense)}). Отличный прогресс!`);
-    } else if (pct >= 25) {
-      insights.push(`🌱 Пассивный доход покрывает ${pct.toFixed(0)}% обязательных расходов. Продолжайте в том же духе!`);
-    }
-  }
-  
-  // --- 6. Сбережения (подушка безопасности) ---
-  if (savings > 0) {
-    const monthsToLive = Math.round(savings / (totalExpense / 12));
-    if (monthsToLive >= 12) {
-      insights.push(`💰 Подушка безопасности — ${monthsToLive} месяцев (${fmt(savings)}). Отличный результат!`);
-    } else if (monthsToLive >= 6) {
-      insights.push(`💰 Подушка безопасности — ${monthsToLive} месяцев (${fmt(savings)}). Вы на правильном пути!`);
-    } else if (monthsToLive >= 3) {
-      insights.push(`💰 Подушка безопасности — ${monthsToLive} месяца (${fmt(savings)}). Рекомендуемая цель — 6 месяцев.`);
-    } else if (monthsToLive > 0) {
-      insights.push(`💰 Подушка безопасности — ${monthsToLive} месяца (${fmt(savings)}). Попробуйте накопить на 3 месяца.`);
-    }
-  }
-  
-  // --- 7. Среднедневные показатели (уникальная информация) ---
-  if (totalIncome > 0) {
-    const incomePerDay = totalIncome / 365;
-    insights.push(`📈 Среднедневной доход: ${fmt(incomePerDay)}`);
-  }
-  
-  if (totalExpense > 0) {
-    const expensePerDay = totalExpense / 365;
-    insights.push(`📉 Среднедневные расходы: ${fmt(expensePerDay)}`);
-  }
-  
-  if (savings > 0) {
-    const savingsPerDay = savings / 365;
-    insights.push(`💪 Ежедневно вы откладываете ${fmt(savingsPerDay)}`);
-  }
-  
-  // --- 8. Соотношение доходов и расходов (уникальный вывод) ---
-  if (totalIncome > 0 && totalExpense > 0) {
-    const ratio = totalExpense / totalIncome;
-    if (ratio < 0.5) {
-      insights.push(`🏆 Вы тратите всего ${(ratio * 100).toFixed(0)}% дохода — блестящий результат!`);
-    } else if (ratio < 0.7) {
-      insights.push(`✅ Вы тратите ${(ratio * 100).toFixed(0)}% дохода. Отличный баланс!`);
-    } else if (ratio > 0.9) {
-      insights.push(`📉 Вы тратите ${(ratio * 100).toFixed(0)}% дохода. Попробуйте сократить расходы на 10-15%.`);
-    }
-  }
-  
-  // --- 9. Мотивация на следующий год (если есть savings) ---
-  if (savings > 0 && mandatoryExpense > 0) {
-    const monthsOfFreedom = Math.round(savings / (mandatoryExpense / 12));
-    if (monthsOfFreedom > 0) {
-      insights.push(`🎯 При сохранении текущего уровня сбережений, через ${monthsOfFreedom} месяцев пассивный доход сможет покрыть обязательные расходы`);
-    }
-  }
-  
-  return insights;
-}
 
-const motivationalInsights = getMotivationalInsights();
-  container.innerHTML = html;
-  updateReviewDropdown();
-}
-
-// ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ИТОГОВ
-// ============================================================
 
 function formatMonth(monthStr) {
   if (!monthStr) return '—';
