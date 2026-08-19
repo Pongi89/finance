@@ -3222,50 +3222,60 @@ function renderYearlyReview(year) {
           .filter(t => t.type === 'expense' && mandatoryCategories.includes(t.category))
           .reduce((s, t) => s + t.amount, 0);
         
-        // --- 4. Что покрывает пассивный доход (полные категории) ---
+        // --- 4. Что покрывает пассивный доход (только обязательные категории) ---
 if (passiveIncome > 0 && sortedExpenses.length > 0) {
-  // Сортируем от самых маленьких расходов к большим
-  const sortedByAmount = [...sortedExpenses].sort((a, b) => a[1] - b[1]);
+  // Фильтруем только обязательные категории
+  const mandatoryCategories = S.categories
+    .filter(c => isMandatory(c))
+    .map(c => c.name);
   
-  let remaining = passiveIncome;
-  let fullyCovered = [];
-  let partialCategory = null;
-  let notCovered = [];
+  // Список категорий, которые нужно исключить
+  const excludeCategories = ['Жизнь', 'Др.', 'Сервисы', 'Налоги'];
   
-  for (const [category, amount] of sortedByAmount) {
-    if (remaining >= amount) {
-      // Полностью покрывает категорию
-      fullyCovered.push({ category, amount });
-      remaining -= amount;
-    } else if (remaining > 0 && remaining / amount > 0.1) {
-      // Частично покрывает (больше 10% от категории)
-      partialCategory = { category, total: amount, covered: remaining };
-      remaining = 0;
-    } else if (remaining > 0) {
-      // Остаток слишком маленький, считаем что не покрывает
-      notCovered.push({ category, amount });
-      remaining = 0;
-    } else {
-      notCovered.push({ category, amount });
-    }
-  }
+  // Берём только обязательные категории, исключая указанные
+  const mandatoryExpensesOnly = sortedExpenses
+    .filter(([category]) => mandatoryCategories.includes(category))
+    .filter(([category]) => !excludeCategories.includes(category))
+    .sort((a, b) => a[1] - b[1]); // Сортируем от маленьких к большим
   
-  // Формируем сообщение
-  if (fullyCovered.length > 0) {
-    let text = `💸 Ваш пассивный доход (${fmt(passiveIncome)}) полностью покрывает: `;
-    const items = fullyCovered.map(c => `${c.category} (${fmt(c.amount)})`);
-    text += items.join(', ');
-    insights.push(text);
+  if (mandatoryExpensesOnly.length > 0) {
+    let remaining = passiveIncome;
+    let fullyCovered = [];
+    let partialCategory = null;
     
-    // Если есть частичное покрытие, добавляем отдельно
-    if (partialCategory) {
-      const pct = (partialCategory.covered / partialCategory.total * 100);
-      insights.push(`💰 Ещё хватает на ${pct.toFixed(0)}% от "${partialCategory.category}" (${fmt(partialCategory.covered)} из ${fmt(partialCategory.total)})`);
+    for (const [category, amount] of mandatoryExpensesOnly) {
+      if (remaining >= amount) {
+        fullyCovered.push({ category, amount });
+        remaining -= amount;
+      } else if (remaining > 0 && remaining / amount > 0.1) {
+        partialCategory = { category, total: amount, covered: remaining };
+        remaining = 0;
+        break;
+      } else if (remaining > 0) {
+        // Остаток слишком маленький
+        remaining = 0;
+        break;
+      }
     }
-  } else if (partialCategory) {
-    // Если не покрывает ни одной полной категории
-    const pct = (partialCategory.covered / partialCategory.total * 100);
-    insights.push(`💸 Пассивный доход (${fmt(passiveIncome)}) пока покрывает только ${pct.toFixed(0)}% от "${partialCategory.category}"`);
+    
+    if (fullyCovered.length > 0) {
+      let text = `💸 Ваш пассивный доход (${fmt(passiveIncome)}) полностью покрывает обязательные расходы: `;
+      const items = fullyCovered.map(c => `${c.category} (${fmt(c.amount)})`);
+      text += items.join(', ');
+      insights.push(text);
+      
+      if (partialCategory) {
+        const pct = (partialCategory.covered / partialCategory.total * 100);
+        insights.push(`💰 Ещё хватает на ${pct.toFixed(0)}% от "${partialCategory.category}" (${fmt(partialCategory.covered)} из ${fmt(partialCategory.total)})`);
+      }
+    } else if (partialCategory) {
+      const pct = (partialCategory.covered / partialCategory.total * 100);
+      insights.push(`💸 Пассивный доход (${fmt(passiveIncome)}) пока покрывает только ${pct.toFixed(0)}% от обязательной категории "${partialCategory.category}"`);
+    } else {
+      insights.push(`💸 Пассивный доход (${fmt(passiveIncome)}) пока не покрывает ни одной обязательной категории`);
+    }
+  } else {
+    insights.push(`💸 Нет обязательных категорий для расчёта покрытия пассивным доходом`);
   }
 }
         
