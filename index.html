@@ -3320,7 +3320,8 @@ function renderYearlyReview(year) {
 `; // ← ЗДЕСЬ ЗАКАНЧИВАЕТСЯ html
 
 container.innerHTML = html;
-  
+updateReviewDropdown();
+} // ← ЭТА СКОБКА ЗАКРЫВАЕТ renderYearlyReview()  
 
 
 function formatMonth(monthStr) {
