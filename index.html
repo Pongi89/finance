@@ -470,14 +470,7 @@ th.sortable.sorted-desc::after {
     <button class="period-btn" onclick="setHistoryPeriod('year',this)">Год</button>
     <button class="period-btn" onclick="setHistoryPeriod('all',this)">Всё время</button>
   </div>
-  <div class="card">
-    <div class="card-title">По категориям</div>
-    <div class="table-wrap">
-      <table><thead><tr><th>Категория</th><th>Сумма</th><th>%</th></tr></thead>
-      <tbody id="summary-body"></tbody></table>
-    </div>
-  </div>
-  <div class="card">
+ <div class="card">
     <div class="section-header">
       <div class="card-title" style="margin:0">Транзакции</div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -1941,13 +1934,6 @@ function renderHistory() {
         <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
       </div>
     </div>`).join('')+'</div>';}
-
-  const totalFiltered=filtered.reduce((s,t)=>s+t.amount,0);
-  const bycat={};
-  filtered.forEach(t=>{bycat[t.category]=(bycat[t.category]||0)+t.amount;});
-  document.getElementById('summary-body').innerHTML=Object.entries(bycat).sort((a,b)=>b[1]-a[1])
-    .map(([c,s])=>`<tr><td>${c}</td><td>${fmt(s)}</td><td>${totalFiltered?(s/totalFiltered*100).toFixed(1)+'%':'—'}</td></tr>`).join('')
-    ||'<tr><td colspan="3" style="color:var(--text2);text-align:center">Нет данных</td></tr>';
 }
 async function deleteTx(rowIndex) {
   if (S.isDemo) return showToast('В демо-режиме редактирование недоступно', 'error');
