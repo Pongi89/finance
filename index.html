@@ -2045,7 +2045,14 @@ function exportCSV() {
   const filter = document.getElementById('history-filter')?.value || 'all';
   let filtered = filterByPeriod(S.transactions, S.histPeriod);
   if (filter !== 'all') filtered = filtered.filter(t => t.type === filter);
-  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...filtered].sort((a, b) => {
+  // Сначала сортируем по дате (новые сверху)
+  if (a.date !== b.date) {
+    return b.date.localeCompare(a.date);
+  }
+  // Если даты одинаковые — сортируем по индексу строки (чем больше номер, тем новее)
+  return b._rowIndex - a._rowIndex;
+});
   if (!sorted.length) return showToast('Нет данных за период', 'error');
 
   const header = 'Дата;Тип;Категория;Сумма;Комментарий';
