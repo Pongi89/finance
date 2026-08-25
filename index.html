@@ -473,17 +473,17 @@ th.sortable.sorted-desc::after {
  <div class="card">
     <div class="section-header">
       <div class="card-title" style="margin:0">Транзакции</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <select class="form-input" id="history-category-filter" style="width:auto;padding:5px 10px;font-size:12px;" onchange="renderHistory()">
-      <option value="all">Все категории</option>
-           </select>
-        <button class="csv-btn" onclick="exportCSV()">CSV</button>
-        <select class="form-input" style="width:auto;padding:5px 10px" id="history-filter" onchange="renderHistory()">
-          <option value="all">Все</option>
-          <option value="expense">Расходы</option>
-          <option value="income">Доходы</option>
-        </select>
-      </div>
+     <div style="display:flex;gap:6px;align-items:center">
+  <select class="form-input" style="width:auto;padding:5px 10px" id="history-filter" onchange="renderHistory()">
+    <option value="all">Все</option>
+    <option value="expense">Расходы</option>
+    <option value="income">Доходы</option>
+  </select>
+  <select class="form-input" id="history-category-filter" style="width:auto;padding:5px 10px;font-size:12px;" onchange="renderHistory()">
+    <option value="all">Все категории</option>
+  </select>
+  <button class="csv-btn" onclick="exportCSV()">CSV</button>
+</div>
     </div>
     <div id="history-list"><div class="loader">Загрузка...</div></div>
   </div>
