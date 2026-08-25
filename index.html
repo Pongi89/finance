@@ -474,6 +474,8 @@ th.sortable.sorted-desc::after {
     <div class="section-header">
       <div class="card-title" style="margin:0">Транзакции</div>
       <div style="display:flex;gap:6px;align-items:center">
+        <select class="form-input" id="history-category-filter" style="width:auto;padding:5px 10px;font-size:12px;" onchange="renderHistory()">
+      <option value="all">Все категории</option>
         <button class="csv-btn" onclick="exportCSV()">CSV</button>
         <select class="form-input" style="width:auto;padding:5px 10px" id="history-filter" onchange="renderHistory()">
           <option value="all">Все</option>
@@ -1920,20 +1922,96 @@ function setHistoryPeriod(period,btn){
   btn.classList.add('active'); renderHistory();
 }
 function renderHistory() {
-  const filter=document.getElementById('history-filter')?.value||'all';
-  let filtered=filterByPeriod(S.transactions,S.histPeriod);
-  if(filter!=='all')filtered=filtered.filter(t=>t.type===filter);
-  const sorted=[...filtered].sort((a,b)=>b.date.localeCompare(a.date));
-  const listEl=document.getElementById('history-list');
-  if(!sorted.length){listEl.innerHTML='<div class="empty">Нет транзакций</div>';}
-  else{listEl.innerHTML='<div class="tx-list">'+sorted.map(t=>`
-    <div class="tx-item" onclick="openEditTx(${t._rowIndex})">
-      <div class="tx-left"><div class="tx-cat">${t.category}</div><div class="tx-meta">${fmtDate(t.date)}${t.comment?' · '+t.comment:''}</div></div>
-      <div class="tx-right">
-        <div class="tx-amount ${t.type}">${t.type==='income'?'+':'−'}${fmt(t.amount)}</div>
-        <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
-      </div>
-    </div>`).join('')+'</div>';}
+  // --- Обновляем список категорий в фильтре ---
+  const categoryFilter = document.getElementById('history-category-filter');
+  if (categoryFilter) {
+    const currentValue = categoryFilter.value;
+    const categories = [...new Set(S.transactions.map(t => t.category).filter(Boolean))].sort();
+    categoryFilter.innerHTML = '<option value="all">Все категории</option>' +
+      categories.map(c => `<option value="${c}" ${c === currentValue ? 'selected' : ''}>${c}</option>`).join('');
+  }
+
+  // --- Получаем значения фильтров ---
+  const typeFilter = document.getElementById('history-filter')?.value || 'all';
+  const category = document.getElementById('history-category-filter')?.value || 'all';
+  const searchQuery = document.getElementById('history-search')?.value?.toLowerCase() || '';
+
+  // --- Применяем фильтры ---
+  let filtered = filterByPeriod(S.transactions, S.histPeriod);
+  
+  if (typeFilter !== 'all') {
+    filtered = filtered.filter(t => t.type === typeFilter);
+  }
+  
+  if (category !== 'all') {
+    filtered = filtered.filter(t => t.category === category);
+  }
+  
+  if (searchQuery) {
+    filtered = filtered.filter(t => (t.comment || '').toLowerCase().includes(searchQuery));
+  }
+
+  // --- Сортировка ---
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.date !== b.date) {
+      return b.date.localeCompare(a.date);
+    }
+    return b._rowIndex - a._rowIndex;
+  });
+
+  const listEl = document.getElementById('history-list');
+
+  if (!sorted.length) {
+    listEl.innerHTML = '<div class="empty">Нет транзакций</div>';
+    return;
+  }
+
+  // --- Группировка по дням ---
+  const grouped = {};
+  sorted.forEach(t => {
+    if (!grouped[t.date]) grouped[t.date] = [];
+    grouped[t.date].push(t);
+  });
+
+  // --- Формируем HTML ---
+  let html = '<div class="tx-list">';
+  
+  Object.entries(grouped).forEach(([date, transactions]) => {
+    const dayTotal = transactions.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
+    const dayTotalFormatted = fmt(Math.abs(dayTotal));
+    const sign = dayTotal >= 0 ? '+' : '−';
+    const color = dayTotal >= 0 ? 'var(--income)' : 'var(--expense)';
+    
+    html += `
+      <div class="day-group" style="margin-bottom:12px;">
+        <div class="day-header" style="font-weight:600;color:var(--text);padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">
+          📅 ${formatDateLong(date)} (Итого: <span style="color:${color}">${sign}${dayTotalFormatted}</span>)
+        </div>
+    `;
+    
+    transactions.forEach(t => {
+      const amountClass = t.type === 'income' ? 'income' : 'expense';
+      const signTx = t.type === 'income' ? '+' : '−';
+      
+      html += `
+        <div class="tx-item" onclick="openEditTx(${t._rowIndex})">
+          <div class="tx-left">
+            <div class="tx-cat">${t.category}</div>
+            <div class="tx-meta">${t.comment ? t.comment : ''}</div>
+          </div>
+          <div class="tx-right">
+            <div class="tx-amount ${amountClass}">${signTx}${fmt(t.amount)}</div>
+            <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += `</div>`;
+  });
+  
+  html += '</div>';
+  listEl.innerHTML = html;
 }
 async function deleteTx(rowIndex) {
   if (S.isDemo) return showToast('В демо-режиме редактирование недоступно', 'error');
