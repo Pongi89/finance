@@ -1990,23 +1990,24 @@ function renderHistory() {
         </div>
     `;
     
-    transactions.forEach(t => {
-      const amountClass = t.type === 'income' ? 'income' : 'expense';
-      const signTx = t.type === 'income' ? '+' : '−';
-      
-      html += `
-        <div class="tx-item" onclick="openEditTx(${t._rowIndex})">
-          <div class="tx-left">
-            <div class="tx-cat">${t.category}</div>
-            <div class="tx-meta">${t.comment ? t.comment : ''}</div>
-          </div>
-          <div class="tx-right">
-            <div class="tx-amount ${amountClass}">${signTx}${fmt(t.amount)}</div>
-            <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
-          </div>
-        </div>
-      `;
-    });
+   transactions.forEach((t, index, array) => {
+  // Добавляем разделитель между транзакциями (кроме последней)
+  const isLast = index === array.length - 1;
+  
+  html += `
+    <div class="tx-item" onclick="openEditTx(${t._rowIndex})" style="margin-bottom:${isLast ? '0' : '4px'};">
+      <div class="tx-left">
+        <div class="tx-cat">${t.category}</div>
+        <div class="tx-meta">${t.comment ? t.comment : ''}</div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : '−'}${fmt(t.amount)}</div>
+        <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
+      </div>
+    </div>
+    ${!isLast ? `<div style="border-bottom:1px solid var(--border);margin:2px 0 4px 0;opacity:0.3;"></div>` : ''}
+  `;
+});
     
     html += `</div>`;
   });
