@@ -1923,18 +1923,8 @@ function setHistoryPeriod(period,btn){
   btn.classList.add('active'); renderHistory();
 }
 function renderHistory() {
-  // --- Обновляем список категорий в фильтре ---
   const categoryFilter = document.getElementById('history-category-filter');
-  if (categoryFilter) {
-    const currentValue = categoryFilter.value;
-    const categories = [...new Set(S.transactions.map(t => t.category).filter(Boolean))].sort();
-    categoryFilter.innerHTML = '<option value="all">Все категории</option>' +
-      categories.map(c => `<option value="${c}" ${c === currentValue ? 'selected' : ''}>${c}</option>`).join('');
-  }
-
-  // --- Получаем значения фильтров ---
   const typeFilter = document.getElementById('history-filter')?.value || 'all';
-  const category = document.getElementById('history-category-filter')?.value || 'all';
   const searchQuery = document.getElementById('history-search')?.value?.toLowerCase() || '';
 
   // --- Применяем фильтры ---
@@ -1944,12 +1934,30 @@ function renderHistory() {
     filtered = filtered.filter(t => t.type === typeFilter);
   }
   
-  if (category !== 'all') {
-    filtered = filtered.filter(t => t.category === category);
-  }
-  
   if (searchQuery) {
     filtered = filtered.filter(t => (t.comment || '').toLowerCase().includes(searchQuery));
+  }
+
+  // --- Обновляем список категорий в фильтре (зависит от выбранного типа) ---
+  if (categoryFilter) {
+    const currentValue = categoryFilter.value;
+    let categories = [...new Set(filtered.map(t => t.category).filter(Boolean))].sort();
+    
+    // Если выбран конкретный тип (доходы или расходы), показываем только категории этого типа
+    if (typeFilter !== 'all') {
+      // Уже отфильтровано выше
+    }
+    // Если выбран "Все", показываем все категории
+    
+    categoryFilter.innerHTML = '<option value="all">Все категории</option>' +
+      categories.map(c => `<option value="${c}" ${c === currentValue ? 'selected' : ''}>${c}</option>`).join('');
+  }
+
+  const category = document.getElementById('history-category-filter')?.value || 'all';
+  
+  // --- Фильтр по категории ---
+  if (category !== 'all') {
+    filtered = filtered.filter(t => t.category === category);
   }
 
   // --- Сортировка ---
@@ -1990,24 +1998,25 @@ function renderHistory() {
         </div>
     `;
     
-   transactions.forEach((t, index, array) => {
-  // Добавляем разделитель между транзакциями (кроме последней)
-  const isLast = index === array.length - 1;
-  
-  html += `
-    <div class="tx-item" onclick="openEditTx(${t._rowIndex})" style="margin-bottom:${isLast ? '0' : '4px'};">
-      <div class="tx-left">
-        <div class="tx-cat">${t.category}</div>
-        <div class="tx-meta">${t.comment ? t.comment : ''}</div>
-      </div>
-      <div class="tx-right">
-        <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : '−'}${fmt(t.amount)}</div>
-        <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
-      </div>
-    </div>
-    ${!isLast ? `<div style="border-bottom:1px solid var(--border);margin:2px 0 4px 0;opacity:0.3;"></div>` : ''}
-  `;
-});
+    transactions.forEach((t, index, array) => {
+      const isLast = index === array.length - 1;
+      const amountClass = t.type === 'income' ? 'income' : 'expense';
+      const signTx = t.type === 'income' ? '+' : '−';
+      
+      html += `
+        <div class="tx-item" onclick="openEditTx(${t._rowIndex})" style="${!isLast ? 'margin-bottom:4px;' : ''}">
+          <div class="tx-left">
+            <div class="tx-cat">${t.category}</div>
+            <div class="tx-meta">${t.comment ? t.comment : ''}</div>
+          </div>
+          <div class="tx-right">
+            <div class="tx-amount ${amountClass}">${signTx}${fmt(t.amount)}</div>
+            <button class="tx-del" onclick="event.stopPropagation();deleteTx(${t._rowIndex})">×</button>
+          </div>
+        </div>
+        ${!isLast ? `<div style="border-bottom:1px solid var(--border);margin:2px 0 4px 0;opacity:0.25;"></div>` : ''}
+      `;
+    });
     
     html += `</div>`;
   });
