@@ -1439,62 +1439,123 @@ function renderDayTable(txs, containerId, isIncome) {
 }
 
 function renderTotalsBlocks(incomes, expenses, mandatory, optional, accountPositions, cutoff, totalIncome, totalExpense, accountsTotal, totalFunds, delta) {
-  // Доходы + текущие счета
+  // ===== ДОХОДЫ =====
   const incomeEl = document.getElementById('totals-income-block');
-  const incomeCats = S.categories.filter(c=>c.type==='income');
+  
+  // Группируем доходы по названию категории (объединяем все транзакции с одинаковым названием)
   const incomeBycat = {};
-  incomes.forEach(t=>{ incomeBycat[t.category]=(incomeBycat[t.category]||0)+t.amount; });
-
-  let html='';
-  incomeCats.forEach(c=>{
-    const v=incomeBycat[c.name]||0;
-    html+=`<div class="totals-row sub"><span class="totals-label">${c.name}</span><span class="totals-value ${v>0?'c-income':''}">${v>0?fmt(v):'—'}</span></div>`;
+  incomes.forEach(t => {
+    incomeBycat[t.category] = (incomeBycat[t.category] || 0) + t.amount;
   });
-  html+=`<div class="totals-row" style="margin-top:4px"><span class="totals-label" style="font-weight:600">Итого доходы</span><span class="totals-value c-income">${fmt(totalIncome)}</span></div>`;
+  
+  // Берём категории из справочника, но если в транзакциях есть категории, которых нет в справочнике — тоже показываем
+  const incomeCats = S.categories.filter(c => c.type === 'income');
+  
+  // Собираем все уникальные названия: из справочника + из транзакций
+  const uniqueIncomeNames = new Set();
+  incomeCats.forEach(c => uniqueIncomeNames.add(c.name));
+  Object.keys(incomeBycat).forEach(name => uniqueIncomeNames.add(name));
+  
+  let html = '';
+  uniqueIncomeNames.forEach(name => {
+    const v = incomeBycat[name] || 0;
+    // Показываем категорию, если она есть в справочнике ИЛИ есть сумма
+    const cat = incomeCats.find(c => c.name === name);
+    if (cat || v > 0) {
+      html += `<div class="totals-row sub">
+        <span class="totals-label">${name}</span>
+        <span class="totals-value ${v > 0 ? 'c-income' : ''}">${v > 0 ? fmt(v) : '—'}</span>
+      </div>`;
+    }
+  });
+  
+  html += `<div class="totals-row" style="margin-top:4px">
+    <span class="totals-label" style="font-weight:600">Итого доходы</span>
+    <span class="totals-value c-income">${fmt(totalIncome)}</span>
+  </div>`;
 
-  if(accountPositions.length){
-    html+=`<div class="totals-row" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px"><span class="totals-label" style="font-weight:600;color:var(--text2)">Текущие счета</span><span class="totals-value c-muted">${fmt(accountsTotal)}</span></div>`;
-    accountPositions.forEach(p=>{
-      const a=getLatestAsset(p.id,cutoff);
-      if(a) html+=`<div class="totals-row sub"><span class="totals-label">${p.name}</span><span class="totals-value c-muted">${fmt(a.amount)}</span></div>`;
+  // Текущие счета
+  if (accountPositions && accountPositions.length) {
+    html += `<div class="totals-row" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+      <span class="totals-label" style="font-weight:600;color:var(--text2)">Текущие счета</span>
+      <span class="totals-value c-muted">${fmt(accountsTotal)}</span>
+    </div>`;
+    accountPositions.forEach(p => {
+      const a = getLatestAsset(p.id, cutoff);
+      if (a) html += `<div class="totals-row sub">
+        <span class="totals-label">${p.name}</span>
+        <span class="totals-value c-muted">${fmt(a.amount)}</span>
+      </div>`;
     });
   }
 
-  const passiveNames=getPassiveCategoryNames();
-  const hasPassiveIncome=passiveNames.length>0;
-  if(!hasPassiveIncome){
-    html+=`<div style="margin:8px 0;padding:10px 12px;border-radius:8px;border:1px dashed var(--border);color:var(--text2);font-size:12px;line-height:1.5">
+  // Пассивный доход
+  const passiveNames = getPassiveCategoryNames();
+  const hasPassiveIncome = passiveNames.length > 0;
+  if (!hasPassiveIncome) {
+    html += `<div style="margin:8px 0;padding:10px 12px;border-radius:8px;border:1px dashed var(--border);color:var(--text2);font-size:12px;line-height:1.5">
       Укажите категории пассивного дохода (проценты, дивиденды) — и вы увидите, насколько он покрывает расходы.
       <br><span style="color:var(--accent);cursor:pointer;font-weight:500" onclick="showPage('settings')">Настроить →</span>
     </div>`;
   }
-  html+=`<div class="totals-row highlight"><span class="totals-label" style="font-weight:700">Всего средств</span><span class="totals-value c-accent" style="font-size:16px">${fmt(totalFunds)}</span></div>`;
-  html+=`<div class="totals-row highlight"><span class="totals-label" style="font-weight:700">Разница</span><span class="totals-value ${delta>=0?'c-income':'c-expense'}" style="font-size:16px">${fmt(delta)}</span></div>`;
-  incomeEl.innerHTML=html;
+  
+  html += `<div class="totals-row highlight">
+    <span class="totals-label" style="font-weight:700">Всего средств</span>
+    <span class="totals-value c-accent" style="font-size:16px">${fmt(totalFunds)}</span>
+  </div>`;
+  html += `<div class="totals-row highlight">
+    <span class="totals-label" style="font-weight:700">Разница</span>
+    <span class="totals-value ${delta >= 0 ? 'c-income' : 'c-expense'}" style="font-size:16px">${fmt(delta)}</span>
+  </div>`;
+  incomeEl.innerHTML = html;
 
-  // Расходы
-  const expenseEl=document.getElementById('totals-expense-block');
-  const expCats=S.categories.filter(c=>c.type==='expense');
-  const expBycat={};
-  expenses.forEach(t=>{ expBycat[t.category]=(expBycat[t.category]||0)+t.amount; });
-  let html2='';
-  expCats.forEach(c=>{
-    const v=expBycat[c.name]||0;
-    if(!v) return;
-    html2+=`<div class="totals-row sub"><span class="totals-label">${c.name}</span><span class="totals-value c-expense">${fmt(v)}</span></div>`;
+  // ===== РАСХОДЫ =====
+  const expenseEl = document.getElementById('totals-expense-block');
+  
+  // Группируем расходы по названию категории
+  const expBycat = {};
+  expenses.forEach(t => {
+    expBycat[t.category] = (expBycat[t.category] || 0) + t.amount;
   });
-  const hasMandatory=S.categories.some(c=>c.type==='expense'&&isMandatory(c));
-  if(!hasMandatory){
-    html2+=`<div style="margin:8px 0;padding:10px 12px;border-radius:8px;border:1px dashed var(--border);color:var(--text2);font-size:12px;line-height:1.5">
+  
+  const expCats = S.categories.filter(c => c.type === 'expense');
+  const uniqueExpNames = new Set();
+  expCats.forEach(c => uniqueExpNames.add(c.name));
+  Object.keys(expBycat).forEach(name => uniqueExpNames.add(name));
+  
+  let html2 = '';
+  uniqueExpNames.forEach(name => {
+    const v = expBycat[name] || 0;
+    const cat = expCats.find(c => c.name === name);
+    if ((cat || v > 0) && v > 0) { // показываем только если есть сумма
+      html2 += `<div class="totals-row sub">
+        <span class="totals-label">${name}</span>
+        <span class="totals-value c-expense">${fmt(v)}</span>
+      </div>`;
+    }
+  });
+
+  const hasMandatory = S.categories.some(c => c.type === 'expense' && isMandatory(c));
+  if (!hasMandatory) {
+    html2 += `<div style="margin:8px 0;padding:10px 12px;border-radius:8px;border:1px dashed var(--border);color:var(--text2);font-size:12px;line-height:1.5">
       Разделите расходы на обязательные и необязательные — это поможет понять, сколько нужно минимум в месяц.
       <br><span style="color:var(--accent);cursor:pointer;font-weight:500" onclick="showPage('settings')">Настроить категории →</span>
     </div>`;
   } else {
-    html2+=`<div class="totals-row" style="margin-top:4px"><span class="totals-label" style="font-weight:600">Обязательные</span><span class="totals-value">${fmt(mandatory)}</span></div>`;
-    html2+=`<div class="totals-row"><span class="totals-label" style="font-weight:600">Необязательные</span><span class="totals-value">${fmt(optional)}</span></div>`;
+    html2 += `<div class="totals-row" style="margin-top:4px">
+      <span class="totals-label" style="font-weight:600">Обязательные</span>
+      <span class="totals-value">${fmt(mandatory)}</span>
+    </div>`;
+    html2 += `<div class="totals-row">
+      <span class="totals-label" style="font-weight:600">Необязательные</span>
+      <span class="totals-value">${fmt(optional)}</span>
+    </div>`;
   }
-  html2+=`<div class="totals-row highlight"><span class="totals-label" style="font-weight:700">Всего расходов</span><span class="totals-value c-expense" style="font-size:16px">${fmt(totalExpense)}</span></div>`;
-  expenseEl.innerHTML=html2;
+  html2 += `<div class="totals-row highlight">
+    <span class="totals-label" style="font-weight:700">Всего расходов</span>
+    <span class="totals-value c-expense" style="font-size:16px">${fmt(totalExpense)}</span>
+  </div>`;
+  expenseEl.innerHTML = html2;
 }
 
 function renderMonthChart(expenses, incomes) {
