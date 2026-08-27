@@ -1500,10 +1500,6 @@ function renderTotalsBlocks(incomes, expenses, mandatory, optional, accountPosit
   }
   
   html += `<div class="totals-row highlight">
-    <span class="totals-label" style="font-weight:700">Всего средств</span>
-    <span class="totals-value c-accent" style="font-size:16px">${fmt(totalFunds)}</span>
-  </div>`;
-  html += `<div class="totals-row highlight">
     <span class="totals-label" style="font-weight:700">Разница</span>
     <span class="totals-value ${delta >= 0 ? 'c-income' : 'c-expense'}" style="font-size:16px">${fmt(delta)}</span>
   </div>`;
