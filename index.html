@@ -289,6 +289,127 @@ th.sortable.sorted-desc::after {
   opacity: 1;
   color: var(--accent);
 }
+    /* ============================================================
+   ИНВЕСТИЦИИ
+   ============================================================ */
+.inv-tab-content {
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.inv-type-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+/* Сетка позиций портфеля */
+.inv-position-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  transition: background 0.15s;
+}
+
+.inv-position-row:hover {
+  background: var(--surface);
+}
+
+.inv-pos-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.inv-pos-ticker {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.inv-pos-meta {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.inv-pos-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.inv-pos-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.inv-pos-profit {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.inv-pos-profit.positive { color: var(--income); }
+.inv-pos-profit.negative { color: var(--expense); }
+
+/* Список операций */
+.inv-op-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+.inv-op-row:hover {
+  background: var(--surface);
+}
+
+.inv-op-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+.inv-op-type.buy { background: rgba(72,187,120,0.15); color: var(--income); }
+.inv-op-type.sell { background: rgba(252,129,129,0.15); color: var(--expense); }
+.inv-op-type.dividend,
+.inv-op-type.coupon,
+.inv-op-type.staking { background: rgba(108,99,255,0.15); color: var(--accent); }
+
+/* Форма операции */
+#page-investments .type-toggle {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#page-investments .type-btn {
+  flex: 1;
+  min-width: 80px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
   </style>
 </head>
 <body>
@@ -555,6 +676,226 @@ th.sortable.sorted-desc::after {
     </div>
     <div id="asset-input-list"></div>
      <select class="form-input" id="asset-position" style="display:none;"></select> <!-- ← ДОБАВИТЬ ЭТУ СТРОКУ -->
+  </div>
+
+</div>
+  <!-- ===================== ИНВЕСТИЦИИ ===================== -->
+<div class="page" id="page-investments">
+
+  <!-- Подвкладки -->
+  <div class="period-row period-row-sticky" id="investments-tabs">
+    <button class="period-btn active" onclick="setInvestmentsTab('portfolio', this)">📊 Портфель</button>
+    <button class="period-btn" onclick="setInvestmentsTab('deals', this)">💼 Сделки</button>
+    <button class="period-btn" onclick="setInvestmentsTab('payments', this)">💰 Выплаты</button>
+    <button class="period-btn" onclick="setInvestmentsTab('analytics', this)">📈 Аналитика</button>
+    <button class="period-btn" onclick="setInvestmentsTab('add', this)">➕ Операция</button>
+  </div>
+
+  <!-- Сводка (видна на всех подвкладках) -->
+  <div class="stats-row" id="inv-summary" style="margin-bottom:16px;">
+    <div class="stat-card">
+      <div class="stat-label">💼 Вложено</div>
+      <div class="stat-value c-text" id="inv-total-cost">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📊 Текущая стоимость</div>
+      <div class="stat-value c-accent" id="inv-total-value">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">💵 Прибыль</div>
+      <div class="stat-value" id="inv-total-profit">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">📈 Доходность</div>
+      <div class="stat-value" id="inv-total-percent">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🏦 Позиций</div>
+      <div class="stat-value c-text" id="inv-positions-count">—</div>
+    </div>
+  </div>
+
+  <!-- ============ ПОДВКЛАДКА: ПОРТФЕЛЬ ============ -->
+  <div id="inv-tab-portfolio" class="inv-tab-content">
+    <div class="card">
+      <div class="card-title">Текущие позиции</div>
+      <div id="inv-portfolio-list"><div class="loader">Загрузка...</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ПОДВКЛАДКА: СДЕЛКИ ============ -->
+  <div id="inv-tab-deals" class="inv-tab-content" style="display:none">
+    <div class="card">
+      <div class="section-header">
+        <div class="card-title" style="margin:0">История сделок</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="form-input" id="inv-deals-filter" style="width:auto;padding:5px 10px" onchange="renderInvestmentsDeals()">
+            <option value="all">Все</option>
+            <option value="buy">Покупки</option>
+            <option value="sell">Продажи</option>
+          </select>
+          <select class="form-input" id="inv-deals-account" style="width:auto;padding:5px 10px" onchange="renderInvestmentsDeals()">
+            <option value="all">Все счета</option>
+          </select>
+        </div>
+      </div>
+      <div id="inv-deals-list"><div class="loader">Загрузка...</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ПОДВКЛАДКА: ВЫПЛАТЫ ============ -->
+  <div id="inv-tab-payments" class="inv-tab-content" style="display:none">
+    <div class="card">
+      <div class="section-header">
+        <div class="card-title" style="margin:0">Выплаты (дивиденды, купоны, стейкинг)</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="form-input" id="inv-payments-filter" style="width:auto;padding:5px 10px" onchange="renderInvestmentsPayments()">
+            <option value="all">Все</option>
+            <option value="dividend">Дивиденды</option>
+            <option value="coupon">Купоны</option>
+            <option value="staking">Стейкинг</option>
+          </select>
+        </div>
+      </div>
+      <div id="inv-payments-list"><div class="loader">Загрузка...</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ПОДВКЛАДКА: АНАЛИТИКА ============ -->
+  <div id="inv-tab-analytics" class="inv-tab-content" style="display:none">
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Структура по типам активов</div>
+        <div class="chart-wrap"><canvas id="chart-inv-types"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Структура по валютам</div>
+        <div class="chart-wrap"><canvas id="chart-inv-currencies"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Структура по счетам</div>
+      <div class="chart-wrap"><canvas id="chart-inv-accounts"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 Топ-10 позиций</div>
+      <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ПОДВКЛАДКА: + ОПЕРАЦИЯ ============ -->
+  <div id="inv-tab-add" class="inv-tab-content" style="display:none">
+    <div class="card">
+      <div class="card-title">Новая операция</div>
+      <div class="form-grid">
+        
+        <div class="form-group full">
+          <div class="form-label">Тип операции</div>
+          <div class="type-toggle">
+            <div class="type-btn active-income" id="inv-btn-buy" onclick="setInvOpType('buy')">Покупка</div>
+            <div class="type-btn" id="inv-btn-sell" onclick="setInvOpType('sell')">Продажа</div>
+            <div class="type-btn" id="inv-btn-dividend" onclick="setInvOpType('dividend')">Дивиденды</div>
+            <div class="type-btn" id="inv-btn-coupon" onclick="setInvOpType('coupon')">Купоны</div>
+            <div class="type-btn" id="inv-btn-staking" onclick="setInvOpType('staking')">Стейкинг</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Дата</div>
+          <input type="date" class="form-input" id="inv-input-date">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Счёт</div>
+          <select class="form-input" id="inv-input-account">
+            <option value="Тинькофф">Тинькофф</option>
+            <option value="ВТБ">ВТБ</option>
+            <option value="ИИС ВТБ">ИИС ВТБ</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Тикер</div>
+          <input type="text" class="form-input" id="inv-input-ticker" placeholder="SBER, LQDT, SU26238RMFS4" style="text-transform:uppercase">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Название</div>
+          <input type="text" class="form-input" id="inv-input-name" placeholder="Сбербанк">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Тип актива</div>
+          <select class="form-input" id="inv-input-asset-type">
+            <option value="stock">Акция</option>
+            <option value="bond">Облигация</option>
+            <option value="fund">Фонд</option>
+            <option value="etf">ETF</option>
+            <option value="zpif">ЗПИФ</option>
+            <option value="currency_bond">Валютная облигация</option>
+            <option value="money_market">Денежный рынок</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Валюта</div>
+          <select class="form-input" id="inv-input-currency">
+            <option value="RUB">RUB — Рубль</option>
+            <option value="USD">USD — Доллар</option>
+            <option value="EUR">EUR — Евро</option>
+            <option value="CNY">CNY — Юань</option>
+            <option value="USDT">USDT — Tether</option>
+            <option value="USDS">USDS — USDS</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="inv-group-quantity">
+          <div class="form-label">Количество</div>
+          <input type="text" class="form-input" id="inv-input-quantity" placeholder="10" inputmode="numeric">
+        </div>
+
+        <div class="form-group" id="inv-group-price">
+          <div class="form-label">Цена за единицу</div>
+          <input type="text" class="form-input" id="inv-input-price" placeholder="280.50" inputmode="numeric">
+        </div>
+
+        <div class="form-group full" id="inv-group-amount">
+          <div class="form-label">Сумма</div>
+          <input type="text" class="form-input" id="inv-input-amount" placeholder="2805" inputmode="numeric" oninput="calcInvAmount()">
+          <div class="calc-hint" id="inv-calc-hint"></div>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Комиссия</div>
+          <input type="text" class="form-input" id="inv-input-fee" placeholder="3" inputmode="numeric">
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Налог</div>
+          <input type="text" class="form-input" id="inv-input-tax" placeholder="0" inputmode="numeric">
+        </div>
+
+        <div class="form-group full" id="inv-group-sync" style="display:none">
+          <div class="form-label">
+            <input type="checkbox" id="inv-input-sync" style="margin-right:8px">
+            Синхронизировать с транзакциями (пассивный доход)
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">
+            Автоматически создаст запись в доходах. Доступно с 01.01.2027.
+          </div>
+        </div>
+
+        <div class="form-group full">
+          <div class="form-label">Комментарий</div>
+          <input type="text" class="form-input" id="inv-input-comment" placeholder="Заметка...">
+        </div>
+
+        <div class="form-group full">
+          <button class="btn btn-primary" onclick="submitInvestment()">Сохранить</button>
+        </div>
+
+      </div>
+    </div>
   </div>
 
 </div>
