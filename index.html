@@ -816,7 +816,11 @@ th.sortable.sorted-desc::after {
 
         <div class="form-group">
           <div class="form-label">Тикер</div>
-          <input type="text" class="form-input" id="inv-input-ticker" placeholder="SBER, LQDT, SU26238RMFS4" style="text-transform:uppercase">
+          <input type="text" class="form-input" id="inv-input-ticker" 
+  placeholder="SBER, LQDT, SU26238RMFS4" 
+  style="text-transform:uppercase"
+  onblur="autofillTicker()"
+  onchange="autofillTicker()">
         </div>
 
         <div class="form-group">
@@ -5013,7 +5017,55 @@ async function submitInvestment() {
 function openEditInvestment(id) {
   showToast('Редактирование пока недоступно', 'error');
 }
+/**
+ * Ищет название и тип актива по тикеру в уже загруженных операциях
+ * @param {string} ticker - тикер (SBER, GAZP)
+ * @returns {object|null} - { name, asset_type } или null
+ */
+function findTickerInfo(ticker) {
+  if (!ticker || !S.invOperations) return null;
+  
+  const upperTicker = ticker.toUpperCase().trim();
+  
+  // Ищем последнюю операцию с таким тикером
+  const op = S.invOperations.find(o => 
+    o.ticker && o.ticker.toUpperCase() === upperTicker
+  );
+  
+  if (!op) return null;
+  
+  return {
+    name: op.name || '',
+    asset_type: op.asset_type || 'stock'
+  };
+}
 
+/**
+ * Автозаполнение полей при вводе тикера
+ */
+function autofillTicker() {
+  const tickerInput = document.getElementById('inv-input-ticker');
+  const nameInput = document.getElementById('inv-input-name');
+  const typeSelect = document.getElementById('inv-input-asset-type');
+  
+  if (!tickerInput || !nameInput) return;
+  
+  const ticker = tickerInput.value.trim().toUpperCase();
+  
+  if (!ticker) return;
+  
+  const info = findTickerInfo(ticker);
+  
+  if (info) {
+    // Заполняем только если поле пустое (чтобы не затирать ручной ввод)
+    if (!nameInput.value.trim()) {
+      nameInput.value = info.name;
+    }
+    if (typeSelect && info.asset_type) {
+      typeSelect.value = info.asset_type;
+    }
+  }
+}
 const _originalShowPage2 = window.showPage;
 window.showPage = function(name) {
   _originalShowPage2(name);
