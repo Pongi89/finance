@@ -1171,7 +1171,110 @@ th.sortable.sorted-desc::after {
     </div>
   </div>
 </div>
+<!-- EDIT INVESTMENT MODAL -->
+<div class="edit-overlay" id="edit-inv-overlay">
+  <div class="edit-modal" style="max-width:520px">
+    <div class="edit-modal-title">Редактировать операцию</div>
+    <div class="form-grid">
+      
+      <div class="form-group full">
+        <div class="form-label">Тип операции</div>
+        <div class="type-toggle" id="edit-inv-type-toggle">
+          <div class="type-btn" id="edit-inv-btn-buy" onclick="editInvSetType('buy')">Покупка</div>
+          <div class="type-btn" id="edit-inv-btn-sell" onclick="editInvSetType('sell')">Продажа</div>
+          <div class="type-btn" id="edit-inv-btn-dividend" onclick="editInvSetType('dividend')">Дивиденды</div>
+          <div class="type-btn" id="edit-inv-btn-coupon" onclick="editInvSetType('coupon')">Купоны</div>
+          <div class="type-btn" id="edit-inv-btn-staking" onclick="editInvSetType('staking')">Стейкинг</div>
+        </div>
+      </div>
 
+      <div class="form-group">
+        <div class="form-label">Дата</div>
+        <input type="date" class="form-input" id="edit-inv-date">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Счёт</div>
+        <select class="form-input" id="edit-inv-account">
+          <option value="Тинькофф">Тинькофф</option>
+          <option value="ВТБ">ВТБ</option>
+          <option value="ИИС ВТБ">ИИС ВТБ</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Тикер</div>
+        <input type="text" class="form-input" id="edit-inv-ticker" style="text-transform:uppercase">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Название</div>
+        <input type="text" class="form-input" id="edit-inv-name">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Тип актива</div>
+        <select class="form-input" id="edit-inv-asset-type">
+          <option value="stock">Акция</option>
+          <option value="bond">Облигация</option>
+          <option value="fund">Фонд</option>
+          <option value="etf">ETF</option>
+          <option value="zpif">ЗПИФ</option>
+          <option value="currency_bond">Валютная облигация</option>
+          <option value="money_market">Денежный рынок</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Валюта</div>
+        <select class="form-input" id="edit-inv-currency">
+          <option value="RUB">RUB — Рубль</option>
+          <option value="USD">USD — Доллар</option>
+          <option value="EUR">EUR — Евро</option>
+          <option value="CNY">CNY — Юань</option>
+          <option value="USDT">USDT — Tether</option>
+          <option value="USDS">USDS — USDS</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="edit-inv-group-quantity">
+        <div class="form-label">Количество</div>
+        <input type="text" class="form-input" id="edit-inv-quantity" inputmode="numeric">
+      </div>
+
+      <div class="form-group" id="edit-inv-group-price">
+        <div class="form-label">Цена за единицу</div>
+        <input type="text" class="form-input" id="edit-inv-price" inputmode="numeric">
+      </div>
+
+      <div class="form-group full" id="edit-inv-group-amount">
+        <div class="form-label">Сумма</div>
+        <input type="text" class="form-input" id="edit-inv-amount" inputmode="numeric">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Комиссия</div>
+        <input type="text" class="form-input" id="edit-inv-fee" inputmode="numeric">
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Налог</div>
+        <input type="text" class="form-input" id="edit-inv-tax" inputmode="numeric">
+      </div>
+
+      <div class="form-group full">
+        <div class="form-label">Комментарий</div>
+        <input type="text" class="form-input" id="edit-inv-comment">
+      </div>
+
+    </div>
+    <div class="edit-actions">
+      <button class="btn btn-primary" onclick="saveEditInvestment()">Сохранить</button>
+      <button class="btn" style="background:var(--surface2);color:var(--text2)" onclick="closeEditInvestment()">Отмена</button>
+      <button class="btn" style="background:transparent;color:var(--danger);border:1px solid var(--danger)" onclick="deleteEditInvestment()">Удалить</button>
+    </div>
+  </div>
+</div>
 <!-- DONATE MODAL -->
 <div class="edit-overlay" id="donate-overlay" onclick="if(event.target===this)closeDonateModal()">
   <div class="edit-modal" style="max-width:520px">
@@ -5024,8 +5127,153 @@ async function submitInvestment() {
   }
 }
 
-function openEditInvestment(id) {
-  showToast('Редактирование пока недоступно', 'error');
+// ============================================================
+// РЕДАКТИРОВАНИЕ ИНВЕСТИЦИОННОЙ ОПЕРАЦИИ
+// ============================================================
+
+let _editInvId = null;
+let _editInvType = 'buy';
+
+async function openEditInvestment(id) {
+  if (!id) return;
+  
+  // Загружаем операции, если ещё не загружены
+  if (!S.invOperations) {
+    await loadInvestments(true);
+  }
+  
+  const op = S.invOperations.find(o => String(o.id) === String(id));
+  if (!op) {
+    showToast('Операция не найдена', 'error');
+    return;
+  }
+  
+  _editInvId = op.id;
+  
+  // Заполняем поля
+  document.getElementById('edit-inv-date').value = op.date || '';
+  document.getElementById('edit-inv-ticker').value = op.ticker || '';
+  document.getElementById('edit-inv-name').value = op.name || '';
+  document.getElementById('edit-inv-account').value = op.account || 'Тинькофф';
+  document.getElementById('edit-inv-asset-type').value = op.asset_type || 'stock';
+  document.getElementById('edit-inv-currency').value = op.currency || 'RUB';
+  document.getElementById('edit-inv-quantity').value = op.quantity || '';
+  document.getElementById('edit-inv-price').value = op.price || '';
+  document.getElementById('edit-inv-amount').value = op.amount || '';
+  document.getElementById('edit-inv-fee').value = op.fee || '';
+  document.getElementById('edit-inv-tax').value = op.tax || '';
+  document.getElementById('edit-inv-comment').value = op.comment || '';
+  
+  editInvSetType(op.type);
+  
+  document.getElementById('edit-inv-overlay').classList.add('show');
+}
+
+function closeEditInvestment() {
+  document.getElementById('edit-inv-overlay').classList.remove('show');
+  _editInvId = null;
+}
+
+function editInvSetType(type) {
+  _editInvType = type;
+  
+  ['buy', 'sell', 'dividend', 'coupon', 'staking'].forEach(t => {
+    const btn = document.getElementById('edit-inv-btn-' + t);
+    if (!btn) return;
+    btn.className = 'type-btn';
+    if (t === type) {
+      if (t === 'buy') btn.classList.add('active-income');
+      else if (t === 'sell') btn.classList.add('active-expense');
+      else btn.classList.add('active-income');
+    }
+  });
+  
+  const isDeal = (type === 'buy' || type === 'sell');
+  
+  document.getElementById('edit-inv-group-quantity').style.display = isDeal ? '' : 'none';
+  document.getElementById('edit-inv-group-price').style.display = isDeal ? '' : 'none';
+  document.getElementById('edit-inv-group-amount').style.display = isDeal ? 'none' : '';
+}
+
+async function saveEditInvestment() {
+  if (!_editInvId) return;
+  
+  const type = _editInvType;
+  const date = document.getElementById('edit-inv-date').value;
+  const ticker = document.getElementById('edit-inv-ticker').value.trim().toUpperCase();
+  const name = document.getElementById('edit-inv-name').value.trim();
+  const assetType = document.getElementById('edit-inv-asset-type').value;
+  const currency = document.getElementById('edit-inv-currency').value;
+  const account = document.getElementById('edit-inv-account').value;
+  const fee = parseFloat(document.getElementById('edit-inv-fee').value) || 0;
+  const tax = parseFloat(document.getElementById('edit-inv-tax').value) || 0;
+  const comment = document.getElementById('edit-inv-comment').value;
+  
+  if (!date) return showToast('Укажите дату', 'error');
+  if (!ticker) return showToast('Укажите тикер', 'error');
+  
+  const isDeal = (type === 'buy' || type === 'sell');
+  let quantity = 0, price = 0, amount = 0;
+  
+  if (isDeal) {
+    quantity = parseFloat(document.getElementById('edit-inv-quantity').value);
+    price = parseFloat(document.getElementById('edit-inv-price').value);
+    if (!quantity || !price) return showToast('Укажите количество и цену', 'error');
+    amount = quantity * price;
+  } else {
+    const amountRaw = document.getElementById('edit-inv-amount').value.trim();
+    if (!amountRaw) return showToast('Укажите сумму', 'error');
+    try { amount = Function('"use strict";return (' + amountRaw.replace(',','.').replace(/[^0-9+\-*/().]/g,'') + ')')(); }
+    catch(e) { return showToast('Неверная сумма', 'error'); }
+  }
+  
+  const data = {
+    id: _editInvId,
+    date, type, ticker, name, asset_type: assetType, currency,
+    quantity, price, amount, fee, tax, account, comment
+  };
+  
+  try {
+    const r = await apiPost({ action: 'updateInvestment', data });
+    if (r.success) {
+      showToast('Сохранено', 'success');
+      closeEditInvestment();
+      
+      // Сбрасываем кэш
+      S.invOperations = null;
+      S.invPortfolio = null;
+      
+      // Обновляем текущую подвкладку
+      setInvestmentsTab(S.invTab, null);
+    } else {
+      showToast('Ошибка: ' + (r.error || 'неизвестно'), 'error');
+    }
+  } catch(e) {
+    showToast('Ошибка сохранения', 'error');
+  }
+}
+
+async function deleteEditInvestment() {
+  if (!_editInvId) return;
+  if (!confirm('Удалить операцию?')) return;
+  
+  try {
+    const r = await apiPost({ action: 'deleteInvestment', id: _editInvId });
+    if (r.success) {
+      showToast('Удалено', 'success');
+      closeEditInvestment();
+      
+      // Сбрасываем кэш
+      S.invOperations = null;
+      S.invPortfolio = null;
+      
+      setInvestmentsTab(S.invTab, null);
+    } else {
+      showToast('Ошибка: ' + (r.error || 'неизвестно'), 'error');
+    }
+  } catch(e) {
+    showToast('Ошибка удаления', 'error');
+  }
 }
 /**
  * Ищет название и тип актива по тикеру в уже загруженных операциях
