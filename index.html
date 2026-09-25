@@ -1490,7 +1490,10 @@ async function apiGet(params) {
   }
   
   try {
-    const res = await fetchWithTimeout(url.toString());
+    const res = await Promise.race([
+  fetch(url.toString()),
+  new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 120000))
+]);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     
