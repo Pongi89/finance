@@ -4731,7 +4731,7 @@ async function renderInvestmentsDeals() {
   if (!container) return;
   
   container.innerHTML = '<div class="loader">Загрузка...</div>';
-  const all = await loadInvestments(true);
+  const all = await loadInvestments(false);
   const filter = document.getElementById('inv-deals-filter')?.value || 'all';
   const accountFilter = document.getElementById('inv-deals-account')?.value || 'all';
   
@@ -4781,7 +4781,7 @@ async function renderInvestmentsPayments() {
   if (!container) return;
   
   container.innerHTML = '<div class="loader">Загрузка...</div>';
-  const all = await loadInvestments(true);
+  const all = await loadInvestments(false);
   const filter = document.getElementById('inv-payments-filter')?.value || 'all';
   
   let payments = all.filter(o => ['dividend', 'coupon', 'staking'].includes(o.type));
