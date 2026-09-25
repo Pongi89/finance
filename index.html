@@ -1181,6 +1181,9 @@ th.sortable.sorted-desc::after {
 </div>
 
 <script>
+  function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 // ============================================================
 // TOUR
 // ============================================================
@@ -1365,34 +1368,36 @@ function loadAll() {
   }
 
   // Загружаем остальные данные (категории, активы, позиции, настройки)
-  Promise.all([
-    loadCategories(),
-    loadAssets(),
-    loadPositions(),
-    loadSettings(),
-  ]).then(() => {
-    if (!hasFullCache) {
-      loadTransactionsFast(from, to);
-      requestAnimationFrame(() => {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(() => loadTransactionsFull());
-        } else {
-          setTimeout(loadTransactionsFull, 50);
-        }
-      });
-    } else {
-      // Фоновое обновление
-      setTimeout(loadTransactionsFull, 2000);
-    }
-    
-    // ✅ Проверяем данные через 5 секунд
-    setTimeout(async () => {
-      if (!S.transactions || S.transactions.length === 0) {
-        console.warn('⚠️ Данные не загрузились, пробуем восстановить...');
-        await recoverFromEmptyData();
+(async () => {
+  // ✅ Загружаем последовательно, чтобы не банило Google
+  await loadCategories();
+  await sleep(200);
+  await loadAssets();
+  await sleep(200);
+  await loadPositions();
+  await sleep(200);
+  await loadSettings();
+  
+  if (!hasFullCache) {
+    loadTransactionsFast(from, to);
+    requestAnimationFrame(() => {
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => loadTransactionsFull());
+      } else {
+        setTimeout(loadTransactionsFull, 50);
       }
-    }, 5000);
-  });
+    });
+  } else {
+    setTimeout(loadTransactionsFull, 2000);
+  }
+  
+  setTimeout(async () => {
+    if (!S.transactions || S.transactions.length === 0) {
+      console.warn('⚠️ Данные не загрузились, пробуем восстановить...');
+      await recoverFromEmptyData();
+    }
+  }, 5000);
+})();
 } // <-- ЭТО ЗАКРЫВАЕТ ФУНКЦИЮ loadAll()
   
 function exitDemo() {
