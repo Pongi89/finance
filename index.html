@@ -1418,22 +1418,18 @@ function toggleDemo() {
 // ============================================================
 // API
 // ============================================================
-async function fetchWithTimeout(input, init = {}, timeout = 30000) {
-
+async function fetchWithTimeout(input, init = {}, timeout = 60000) {
   const maxAttempts = 3;
-
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout);
-
     try {
-
       const response = await fetch(input, {
         ...init,
+        method: init.method || 'GET',
+        redirect: 'follow',
         signal: ctrl.signal
       });
-
       clearTimeout(timer);
 
       if (response.ok) {
