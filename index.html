@@ -4909,11 +4909,21 @@ async function renderInvestmentsAnalytics() {
   }
 }
 
-function initInvestmentsAddForm() {
+async function initInvestmentsAddForm() {
   const today = localDateStr(new Date());
   const dateInput = document.getElementById('inv-input-date');
   if (dateInput && !dateInput.value) dateInput.value = today;
   setInvOpType(S.invOpType || 'buy');
+  
+  // ✅ Загружаем операции, чтобы работало автозаполнение
+  if (!S.invOperations) {
+    try {
+      await loadInvestments(true);
+      console.log('✅ Инвестиции загружены для автозаполнения:', S.invOperations?.length || 0);
+    } catch(e) {
+      console.warn('Не удалось загрузить инвестиции:', e);
+    }
+  }
 }
 
 function setInvOpType(type) {
