@@ -4618,7 +4618,424 @@ async function hardRefresh() {
 }
 
 console.log('✅ Функции восстановления данных загружены');
+// ============================================================
+// ИНВЕСТИЦИИ — FRONTEND
+// ============================================================
+
+S.invTab = 'portfolio';
+S.invOperations = null;
+S.invPortfolio = null;
+S.invOpType = 'buy';
+
+function setInvestmentsTab(tab, btn) {
+  S.invTab = tab;
   
+  document.querySelectorAll('#investments-tabs .period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  
+  document.querySelectorAll('.inv-tab-content').forEach(el => el.style.display = 'none');
+  const target = document.getElementById('inv-tab-' + tab);
+  if (target) target.style.display = 'block';
+  
+  if (tab === 'portfolio') renderInvestmentsPortfolio();
+  if (tab === 'deals') renderInvestmentsDeals();
+  if (tab === 'payments') renderInvestmentsPayments();
+  if (tab === 'analytics') renderInvestmentsAnalytics();
+  if (tab === 'add') initInvestmentsAddForm();
+}
+
+async function loadInvestments(force) {
+  if (!force && S.invOperations) return S.invOperations;
+  try {
+    const r = await apiGet({ action: 'getInvestments' });
+    S.invOperations = r.data || [];
+    return S.invOperations;
+  } catch (e) {
+    console.error('Ошибка загрузки инвестиций:', e);
+    return [];
+  }
+}
+
+async function loadPortfolio() {
+  try {
+    const r = await apiGet({ action: 'calcPortfolio' });
+    S.invPortfolio = r;
+    return r;
+  } catch (e) {
+    console.error('Ошибка расчёта портфеля:', e);
+    return { positions: [], totals: {} };
+  }
+}
+
+async function renderInvestmentsSummary() {
+  const portfolio = await loadPortfolio();
+  const totals = portfolio.totals || {};
+  
+  document.getElementById('inv-total-cost').textContent = fmt(totals.totalCost || 0);
+  document.getElementById('inv-total-value').textContent = fmt(totals.totalValue || 0);
+  
+  const profitEl = document.getElementById('inv-total-profit');
+  const profit = totals.totalProfit || 0;
+  profitEl.textContent = fmt(profit);
+  profitEl.className = 'stat-value ' + (profit > 0 ? 'c-income' : profit < 0 ? 'c-expense' : 'c-text');
+  
+  const percentEl = document.getElementById('inv-total-percent');
+  const percent = totals.totalProfitPercent || 0;
+  percentEl.textContent = (percent >= 0 ? '+' : '') + percent.toFixed(2) + '%';
+  percentEl.className = 'stat-value ' + (percent > 0 ? 'c-income' : percent < 0 ? 'c-expense' : 'c-text');
+  
+  document.getElementById('inv-positions-count').textContent = totals.positionsCount || 0;
+}
+
+async function renderInvestmentsPortfolio() {
+  const container = document.getElementById('inv-portfolio-list');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="loader">Загрузка...</div>';
+  await renderInvestmentsSummary();
+  const portfolio = await loadPortfolio();
+  const positions = portfolio.positions || [];
+  
+  if (!positions.length) {
+    container.innerHTML = '<div class="empty">Пока нет позиций. Добавьте первую сделку во вкладке «Операция».</div>';
+    return;
+  }
+  
+  let html = '';
+  positions.forEach(p => {
+    const profit = p.profit || 0;
+    const profitPct = p.profitPercent || 0;
+    const profitClass = profit > 0 ? 'positive' : profit < 0 ? 'negative' : '';
+    const profitSign = profit > 0 ? '+' : '';
+    const typeLabel = p.asset_type ? p.asset_type.toUpperCase() : '';
+    
+    html += `
+      <div class="inv-position-row">
+        <div class="inv-pos-left">
+          <div class="inv-pos-ticker">${p.ticker} <span style="font-size:10px;color:var(--text2);margin-left:6px">${typeLabel}</span></div>
+          <div class="inv-pos-meta">${p.name} · ${p.account} · ${p.quantity} шт. × ${p.currentPrice ? p.currentPrice.toFixed(2) : '?'} ₽</div>
+        </div>
+        <div class="inv-pos-right">
+          <div class="inv-pos-value">${p.currentValue !== null ? fmt(p.currentValue) : '—'}</div>
+          ${p.profit !== null ? `<div class="inv-pos-profit ${profitClass}">${profitSign}${fmt(profit)} (${profitSign}${profitPct.toFixed(2)}%)</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+async function renderInvestmentsDeals() {
+  const container = document.getElementById('inv-deals-list');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="loader">Загрузка...</div>';
+  const all = await loadInvestments(true);
+  const filter = document.getElementById('inv-deals-filter')?.value || 'all';
+  const accountFilter = document.getElementById('inv-deals-account')?.value || 'all';
+  
+  const accountSelect = document.getElementById('inv-deals-account');
+  if (accountSelect && accountSelect.options.length <= 1) {
+    const accounts = [...new Set(all.map(o => o.account).filter(Boolean))].sort();
+    accountSelect.innerHTML = '<option value="all">Все счета</option>' +
+      accounts.map(a => `<option value="${a}">${a}</option>`).join('');
+  }
+  
+  let deals = all.filter(o => o.type === 'buy' || o.type === 'sell');
+  if (filter !== 'all') deals = deals.filter(o => o.type === filter);
+  if (accountFilter !== 'all') deals = deals.filter(o => o.account === accountFilter);
+  
+  if (!deals.length) {
+    container.innerHTML = '<div class="empty">Нет сделок за выбранный период</div>';
+    return;
+  }
+  
+  let html = '';
+  deals.forEach(op => {
+    const typeLabel = op.type === 'buy' ? 'Покупка' : 'Продажа';
+    html += `
+      <div class="inv-op-row" onclick="openEditInvestment('${op.id}')">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <span class="inv-op-type ${op.type}">${typeLabel}</span>
+          <div style="min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${op.ticker} <span style="font-weight:400;color:var(--text2)">${op.name || ''}</span></div>
+            <div style="font-size:11px;color:var(--text2)">${formatDate(op.date)} · ${op.account} · ${op.quantity} шт. × ${op.price} ₽</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700;color:${op.type === 'buy' ? 'var(--expense)' : 'var(--income)'}">
+            ${op.type === 'buy' ? '−' : '+'}${fmt(op.amount)}
+          </div>
+          ${op.fee ? `<div style="font-size:10px;color:var(--text2)">комиссия ${fmt(op.fee)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+async function renderInvestmentsPayments() {
+  const container = document.getElementById('inv-payments-list');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="loader">Загрузка...</div>';
+  const all = await loadInvestments(true);
+  const filter = document.getElementById('inv-payments-filter')?.value || 'all';
+  
+  let payments = all.filter(o => ['dividend', 'coupon', 'staking'].includes(o.type));
+  if (filter !== 'all') payments = payments.filter(o => o.type === filter);
+  
+  if (!payments.length) {
+    container.innerHTML = '<div class="empty">Нет выплат за выбранный период</div>';
+    return;
+  }
+  
+  let totalSum = 0;
+  let totalTax = 0;
+  let html = '';
+  
+  payments.forEach(op => {
+    const typeLabels = { dividend: 'Дивиденды', coupon: 'Купоны', staking: 'Стейкинг' };
+    const netAmount = op.amount - (op.tax || 0);
+    totalSum += netAmount;
+    totalTax += op.tax || 0;
+    
+    html += `
+      <div class="inv-op-row" onclick="openEditInvestment('${op.id}')">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <span class="inv-op-type ${op.type}">${typeLabels[op.type]}</span>
+          <div style="min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${op.ticker || op.name || '—'}</div>
+            <div style="font-size:11px;color:var(--text2)">${formatDate(op.date)} · ${op.account}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700;color:var(--income)">+${fmt(netAmount)}</div>
+          ${op.tax ? `<div style="font-size:10px;color:var(--text2)">налог ${fmt(op.tax)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `<div style="margin-top:12px;padding-top:12px;border-top:2px solid var(--accent);display:flex;justify-content:space-between;font-weight:700"><span>ИТОГО (на руки)</span><span style="color:var(--income)">${fmt(totalSum)}</span></div>`;
+  
+  if (totalTax > 0) {
+    html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-top:4px"><span>Удержано налогов</span><span>${fmt(totalTax)}</span></div>`;
+  }
+  
+  container.innerHTML = html;
+}
+
+let invChartTypes = null;
+let invChartCurrencies = null;
+let invChartAccounts = null;
+
+async function renderInvestmentsAnalytics() {
+  const portfolio = await loadPortfolio();
+  const positions = portfolio.positions || [];
+  
+  const byType = {};
+  positions.forEach(p => {
+    const type = p.asset_type || 'other';
+    if (!byType[type]) byType[type] = 0;
+    byType[type] += p.currentValue || 0;
+  });
+  
+  const TYPE_LABELS = { stock: 'Акции', bond: 'Облигации', fund: 'Фонды', etf: 'ETF', zpif: 'ЗПИФ', currency_bond: 'Валютные облигации', money_market: 'Денежный рынок' };
+  const typeLabels = Object.keys(byType).map(k => TYPE_LABELS[k] || k);
+  const typeData = Object.values(byType);
+  
+  const ctx1 = document.getElementById('chart-inv-types').getContext('2d');
+  if (invChartTypes) invChartTypes.destroy();
+  invChartTypes = new Chart(ctx1, {
+    type: 'doughnut',
+    data: { labels: typeLabels, datasets: [{ data: typeData, backgroundColor: COLORS.slice(0, typeLabels.length), borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#8892a4', font: { size: 11 } } }, tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + fmt(c.raw) } } } }
+  });
+  
+  const byCurrency = {};
+  positions.forEach(p => {
+    const cur = p.currency || 'RUB';
+    if (!byCurrency[cur]) byCurrency[cur] = 0;
+    byCurrency[cur] += p.currentValue || 0;
+  });
+  
+  const ctx2 = document.getElementById('chart-inv-currencies').getContext('2d');
+  if (invChartCurrencies) invChartCurrencies.destroy();
+  invChartCurrencies = new Chart(ctx2, {
+    type: 'doughnut',
+    data: { labels: Object.keys(byCurrency), datasets: [{ data: Object.values(byCurrency), backgroundColor: COLORS.slice(0, Object.keys(byCurrency).length), borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#8892a4', font: { size: 11 } } }, tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + fmt(c.raw) } } } }
+  });
+  
+  const byAccount = {};
+  positions.forEach(p => {
+    const acc = p.account || 'Без счёта';
+    if (!byAccount[acc]) byAccount[acc] = 0;
+    byAccount[acc] += p.currentValue || 0;
+  });
+  
+  const ctx3 = document.getElementById('chart-inv-accounts').getContext('2d');
+  if (invChartAccounts) invChartAccounts.destroy();
+  invChartAccounts = new Chart(ctx3, {
+    type: 'bar',
+    data: { labels: Object.keys(byAccount), datasets: [{ data: Object.values(byAccount), backgroundColor: COLORS.slice(0, Object.keys(byAccount).length), borderRadius: 6 }] },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmt(c.raw) } } }, scales: { x: { ticks: { color: '#8892a4', callback: v => fmtShort(v) }, grid: { color: '#2e3148' } }, y: { ticks: { color: '#e2e8f0' }, grid: { display: false } } } }
+  });
+  
+  const topEl = document.getElementById('inv-top-positions');
+  const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
+  
+  if (!sorted.length) {
+    topEl.innerHTML = '<div class="empty">Нет данных</div>';
+  } else {
+    const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
+    let html = '';
+    sorted.forEach((p, i) => {
+      const share = totalValue ? (p.currentValue / totalValue * 100) : 0;
+      html += `<div class="inv-position-row" style="padding:6px 10px"><div class="inv-pos-left"><div class="inv-pos-ticker">${i + 1}. ${p.ticker} <span style="font-weight:400;color:var(--text2);font-size:11px">${p.name}</span></div></div><div class="inv-pos-right"><div class="inv-pos-value">${fmt(p.currentValue || 0)}</div><div style="font-size:11px;color:var(--text2)">${share.toFixed(1)}%</div></div></div>`;
+    });
+    topEl.innerHTML = html;
+  }
+}
+
+function initInvestmentsAddForm() {
+  const today = localDateStr(new Date());
+  const dateInput = document.getElementById('inv-input-date');
+  if (dateInput && !dateInput.value) dateInput.value = today;
+  setInvOpType(S.invOpType || 'buy');
+}
+
+function setInvOpType(type) {
+  S.invOpType = type;
+  
+  ['buy', 'sell', 'dividend', 'coupon', 'staking'].forEach(t => {
+    const btn = document.getElementById('inv-btn-' + t);
+    if (!btn) return;
+    btn.className = 'type-btn';
+    if (t === type) {
+      if (t === 'buy') btn.classList.add('active-income');
+      else if (t === 'sell') btn.classList.add('active-expense');
+      else btn.classList.add('active-income');
+    }
+  });
+  
+  const isDeal = (type === 'buy' || type === 'sell');
+  const isPayment = (type === 'dividend' || type === 'coupon' || type === 'staking');
+  
+  document.getElementById('inv-group-quantity').style.display = isDeal ? '' : 'none';
+  document.getElementById('inv-group-price').style.display = isDeal ? '' : 'none';
+  document.getElementById('inv-group-amount').style.display = isPayment ? '' : 'none';
+  document.getElementById('inv-group-sync').style.display = isPayment ? '' : 'none';
+  
+  if (isPayment) {
+    const dateVal = document.getElementById('inv-input-date').value;
+    const syncCheckbox = document.getElementById('inv-input-sync');
+    if (syncCheckbox) syncCheckbox.checked = dateVal >= '2027-01-01';
+  }
+}
+
+function calcInvAmount() {
+  const val = document.getElementById('inv-input-amount').value.trim();
+  const hint = document.getElementById('inv-calc-hint');
+  if (!val) { hint.textContent = ''; return; }
+  try {
+    const safe = val.replace(/[^0-9+\-*/().]/g, '');
+    const result = Function('"use strict";return (' + safe + ')')();
+    if (typeof result === 'number' && isFinite(result) && val.match(/[+\-*/]/)) {
+      hint.textContent = '= ' + fmt(result);
+    } else { hint.textContent = ''; }
+  } catch(e) { hint.textContent = ''; }
+}
+
+async function submitInvestment() {
+  const type = S.invOpType;
+  const date = document.getElementById('inv-input-date').value;
+  const ticker = document.getElementById('inv-input-ticker').value.trim().toUpperCase();
+  const name = document.getElementById('inv-input-name').value.trim();
+  const assetType = document.getElementById('inv-input-asset-type').value;
+  const currency = document.getElementById('inv-input-currency').value;
+  const account = document.getElementById('inv-input-account').value;
+  const fee = parseFloat(document.getElementById('inv-input-fee').value) || 0;
+  const tax = parseFloat(document.getElementById('inv-input-tax').value) || 0;
+  const comment = document.getElementById('inv-input-comment').value;
+  
+  if (!date) return showToast('Укажите дату', 'error');
+  if (!ticker) return showToast('Укажите тикер', 'error');
+  
+  const isDeal = (type === 'buy' || type === 'sell');
+  const isPayment = (type === 'dividend' || type === 'coupon' || type === 'staking');
+  
+  let quantity = 0, price = 0, amount = 0;
+  
+  if (isDeal) {
+    quantity = parseFloat(document.getElementById('inv-input-quantity').value);
+    price = parseFloat(document.getElementById('inv-input-price').value);
+    if (!quantity || !price) return showToast('Укажите количество и цену', 'error');
+    amount = quantity * price;
+  } else {
+    const amountRaw = document.getElementById('inv-input-amount').value.trim();
+    if (!amountRaw) return showToast('Укажите сумму', 'error');
+    try { amount = Function('"use strict";return (' + amountRaw.replace(',','.').replace(/[^0-9+\-*/().]/g,'') + ')')(); }
+    catch(e) { return showToast('Неверная сумма', 'error'); }
+  }
+  
+  const syncCheckbox = document.getElementById('inv-input-sync');
+  const syncToTx = isPayment && syncCheckbox ? syncCheckbox.checked : false;
+  
+  const data = { date, type, ticker, name, asset_type: assetType, currency, quantity, price, amount, fee, tax, account, sync_to_transactions: syncToTx, comment };
+  
+  try {
+    const r = await apiPost({ action: 'addInvestment', data });
+    if (r.success) {
+      showToast('Операция добавлена', 'success');
+      ['inv-input-ticker','inv-input-name','inv-input-quantity','inv-input-price','inv-input-amount','inv-input-fee','inv-input-tax','inv-input-comment'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      document.getElementById('inv-calc-hint').textContent = '';
+      
+      S.invOperations = null;
+      S.invPortfolio = null;
+      
+      setInvestmentsTab('portfolio', document.querySelector('#investments-tabs .period-btn'));
+    } else {
+      showToast('Ошибка: ' + (r.error || 'неизвестно'), 'error');
+    }
+  } catch(e) {
+    showToast('Ошибка при сохранении', 'error');
+  }
+}
+
+function openEditInvestment(id) {
+  showToast('Редактирование пока недоступно', 'error');
+}
+
+const _originalShowPage2 = window.showPage;
+window.showPage = function(name) {
+  _originalShowPage2(name);
+  if (name === 'investments') {
+    S.invOperations = null;
+    S.invPortfolio = null;
+    setInvestmentsTab(S.invTab || 'portfolio', null);
+    setTimeout(() => {
+      const btns = document.querySelectorAll('#investments-tabs .period-btn');
+      btns.forEach(b => {
+        const text = b.textContent.toLowerCase();
+        if ((S.invTab === 'portfolio' && text.includes('портфель')) ||
+            (S.invTab === 'deals' && text.includes('сделки')) ||
+            (S.invTab === 'payments' && text.includes('выплаты')) ||
+            (S.invTab === 'analytics' && text.includes('аналитика')) ||
+            (S.invTab === 'add' && text.includes('операция'))) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+    }, 50);
+  }
+};
+
+console.log('✅ Инвестиции: frontend загружен');  
 </script>
 </body>
 </html>
