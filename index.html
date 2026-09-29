@@ -4909,25 +4909,37 @@ async function renderInvestmentsPayments() {
   let totalTax = 0;
   let html = '';
   
+  const typeLabels = { dividend: 'Дивиденды', coupon: 'Купоны', staking: 'Стейкинг', tax: 'Налог' };
+  
   payments.forEach(op => {
-    const typeLabels = { dividend: 'Дивиденды', coupon: 'Купоны', staking: 'Стейкинг', tax: 'Налог' };
     const netAmount = op.amount - (op.tax || 0);
     totalSum += netAmount;
     totalTax += op.tax || 0;
     
-const isNegative = netAmount < 0;
-const sign = isNegative ? '' : '+';
-const color = isNegative ? 'var(--expense)' : 'var(--income)';
-
-html += `
-  <div class="inv-op-row" onclick="openEditInvestment('${op.id}')">
-    ...
-    <div style="text-align:right">
-      <div style="font-size:14px;font-weight:700;color:${color}">${sign}${fmt(netAmount)}</div>
-      ${op.tax ? `<div style="font-size:10px;color:var(--text2)">налог ${fmt(op.tax)}</div>` : ''}
-    </div>
-  </div>
-`;
+    const isNegative = netAmount < 0;
+    const sign = isNegative ? '' : '+';
+    const color = isNegative ? 'var(--expense)' : 'var(--income)';
+    
+    // Название и тикер
+    const title = op.name 
+      ? `${op.name} ${op.ticker ? '(' + op.ticker + ')' : ''}` 
+      : (op.ticker || '—');
+    
+    html += `
+      <div class="inv-op-row" onclick="openEditInvestment('${op.id}')">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <span class="inv-op-type ${op.type}">${typeLabels[op.type] || op.type}</span>
+          <div style="min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</div>
+            <div style="font-size:11px;color:var(--text2)">${formatDate(op.date)} · ${op.account}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700;color:${color}">${sign}${fmt(netAmount)}</div>
+          ${op.tax ? `<div style="font-size:10px;color:var(--text2)">налог ${fmt(op.tax)}</div>` : ''}
+        </div>
+      </div>
+    `;
   });
   
   html += `<div style="margin-top:12px;padding-top:12px;border-top:2px solid var(--accent);display:flex;justify-content:space-between;font-weight:700"><span>ИТОГО (на руки)</span><span style="color:var(--income)">${fmt(totalSum)}</span></div>`;
