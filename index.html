@@ -4824,7 +4824,9 @@ async function renderInvestmentsPortfolio() {
       <div class="inv-position-row">
         <div class="inv-pos-left">
           <div class="inv-pos-ticker">${p.ticker} <span style="font-size:10px;color:var(--text2);margin-left:6px">${typeLabel}</span></div>
-          <div class="inv-pos-meta">${p.name} · ${p.account} · ${p.quantity} шт. × ${p.currentPrice ? p.currentPrice.toFixed(2) : '?'} ₽</div>
+          <div class="inv-pos-meta">${p.name} · ${p.account} · ${p.quantity} шт. × ${p.asset_type === 'currency_bond' && p.currentPriceRub
+  ? p.currentPrice.toFixed(2) + '% (≈ ' + fmt(p.currentPriceRub) + ')'
+  : (p.currentPrice ? p.currentPrice.toFixed(2) + ' ₽' : '?')}</div>
         </div>
         <div class="inv-pos-right">
           <div class="inv-pos-value">${p.currentValue !== null ? fmt(p.currentValue) : '—'}</div>
@@ -4895,7 +4897,7 @@ async function renderInvestmentsPayments() {
   const all = await loadInvestments(false);
   const filter = document.getElementById('inv-payments-filter')?.value || 'all';
   
-  let payments = all.filter(o => ['dividend', 'coupon', 'staking'].includes(o.type));
+  let payments = all.filter(o => ['dividend', 'coupon', 'staking', 'tax'].includes(o.type));
   if (filter !== 'all') payments = payments.filter(o => o.type === filter);
   
   if (!payments.length) {
@@ -4908,7 +4910,7 @@ async function renderInvestmentsPayments() {
   let html = '';
   
   payments.forEach(op => {
-    const typeLabels = { dividend: 'Дивиденды', coupon: 'Купоны', staking: 'Стейкинг' };
+    const typeLabels = { dividend: 'Дивиденды', coupon: 'Купоны', staking: 'Стейкинг', tax: 'Налог' };
     const netAmount = op.amount - (op.tax || 0);
     totalSum += netAmount;
     totalTax += op.tax || 0;
