@@ -717,11 +717,14 @@ th.sortable.sorted-desc::after {
 
   <!-- ============ ПОДВКЛАДКА: ПОРТФЕЛЬ ============ -->
   <div id="inv-tab-portfolio" class="inv-tab-content">
-    <div class="card">
-      <div class="card-title">Текущие позиции</div>
-      <div id="inv-portfolio-list"><div class="loader">Загрузка...</div></div>
+  <div class="card">
+    <div class="section-header">
+      <div class="card-title" style="margin:0">Текущие позиции</div>
+      <button class="csv-btn" onclick="refreshInvestments()">🔄 Обновить</button>
     </div>
+    <div id="inv-portfolio-list"><div class="loader">Загрузка...</div></div>
   </div>
+</div>
 
   <!-- ============ ПОДВКЛАДКА: СДЕЛКИ ============ -->
   <div id="inv-tab-deals" class="inv-tab-content" style="display:none">
@@ -1585,13 +1588,22 @@ async function apiGet(params) {
   const cacheKey = 'cache_' + params.action;
   const cached = localStorage.getItem(cacheKey);
   
+  // ✅ Для инвестиций — TTL 30 минут, для остальных — 5 минут
+  const ttl = (params.action === 'calcPortfolio' || params.action === 'getInvestments')
+    ? 30 * 60 * 1000
+    : CACHE_TTL;
+  
   // Если есть кэш и он свежий — возвращаем мгновенно
   if (cached) {
     try {
       const data = JSON.parse(cached);
-      if (Date.now() - data.timestamp < CACHE_TTL) {
-        if (data.data && data.data.data && data.data.data.length > 0) {
-          console.log(`📦 Кэш для ${params.action}: ${data.data.data.length} записей`);
+      if (Date.now() - data.timestamp < ttl) {
+        // ✅ Проверяем, что кэш не пустой
+        const hasData = (data.data?.data?.length > 0) || 
+                        (data.data?.positions?.length > 0) ||
+                        (data.data?.totals);
+        if (hasData) {
+          console.log(`📦 Кэш для ${params.action}`);
           return data.data;
         } else {
           localStorage.removeItem(cacheKey);
@@ -1613,15 +1625,16 @@ async function apiGet(params) {
       
       const json = await res.json();
       
-      // Сохраняем в кэш только если есть данные
-      if (json.data && json.data.length > 0) {
+      // ✅ Сохраняем в кэш ЛЮБОЙ успешный ответ
+      try {
         localStorage.setItem(cacheKey, JSON.stringify({
           timestamp: Date.now(),
           data: json
         }));
-        console.log(`💾 Кэш сохранён для ${params.action}: ${json.data.length} записей`);
-      } else {
-        console.warn(`⚠️ Нет данных для ${params.action}, кэш не сохранён`);
+        const count = json.data?.length ?? (json.positions?.length ?? '—');
+        console.log(`💾 Кэш сохранён для ${params.action}: ${count}`);
+      } catch(e) {
+        console.warn(`⚠️ Не удалось сохранить кэш для ${params.action}:`, e);
       }
       
       return json;
@@ -4760,7 +4773,14 @@ function setInvestmentsTab(tab, btn) {
   if (tab === 'analytics') renderInvestmentsAnalytics();
   if (tab === 'add') initInvestmentsAddForm();
 }
-
+async function refreshInvestments() {
+  console.log('🔄 Принудительное обновление инвестиций');
+  localStorage.removeItem('cache_calcPortfolio');
+  localStorage.removeItem('cache_getInvestments');
+  S.invOperations = null;
+  S.invPortfolio = null;
+  setInvestmentsTab(S.invTab || 'portfolio', null);
+}
 async function loadInvestments(force) {
   if (!force && S.invOperations) return S.invOperations;
   try {
@@ -5346,8 +5366,9 @@ const _originalShowPage2 = window.showPage;
 window.showPage = function(name) {
   _originalShowPage2(name);
   if (name === 'investments') {
-    S.invOperations = null;
-    S.invPortfolio = null;
+    // ✅ НЕ сбрасываем кеш — данные подтянутся из localStorage
+    // S.invOperations = null;
+    // S.invPortfolio = null;
     setInvestmentsTab(S.invTab || 'portfolio', null);
     setTimeout(() => {
       const btns = document.querySelectorAll('#investments-tabs .period-btn');
