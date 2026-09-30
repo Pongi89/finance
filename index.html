@@ -1649,49 +1649,7 @@ async function apiGet(params) {
   showToast(msg, 'error');
   throw lastError;
 }
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    
-    // ✅ Сохраняем в кэш ТОЛЬКО если есть данные
-    if (json.data && json.data.length > 0) {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        timestamp: Date.now(),
-        data: json
-      }));
-      console.log(`💾 Кэш сохранён для ${params.action}: ${json.data.length} записей`);
-    } else {
-      console.warn(`⚠️ Нет данных для ${params.action}, кэш не сохранён`);
-      // Если в кэше уже есть старые данные — оставляем их
-      if (cached) {
-        try {
-          const oldData = JSON.parse(cached);
-          if (oldData.data && oldData.data.data && oldData.data.data.length > 0) {
-            console.log(`📦 Возвращаем старый кэш для ${params.action}`);
-            return oldData.data;
-          }
-        } catch(e) {}
-      }
-    }
-    
-    return json;
-  } catch(e) {
-    // При ошибке — используем старый кэш
-    if (cached) {
-      try {
-        const data = JSON.parse(cached);
-        if (data.data && data.data.data && data.data.data.length > 0) {
-          console.warn(`⚠️ Ошибка, используем старый кэш для ${params.action}`);
-          return data.data;
-        }
-      } catch(e2) {
-        localStorage.removeItem(cacheKey);
-      }
-    }
-    const msg = e.name==='AbortError' ? 'Таймаут — сервер не отвечает' : 'Ошибка запроса: '+e.message;
-    showToast(msg, 'error');
-    throw e;
-  }
-}
+   
 async function apiPost(data) {
   try {
     const res = await fetchWithTimeout(S.apiUrl, { method: 'POST', body: JSON.stringify(data) });
