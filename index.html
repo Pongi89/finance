@@ -1586,26 +1586,69 @@ async function apiGet(params) {
     try {
       const data = JSON.parse(cached);
       if (Date.now() - data.timestamp < CACHE_TTL) {
-        // ✅ Проверяем, что в кэше есть реальные данные
         if (data.data && data.data.data && data.data.data.length > 0) {
           console.log(`📦 Кэш для ${params.action}: ${data.data.data.length} записей`);
           return data.data;
         } else {
-          console.warn(`⚠️ Кэш для ${params.action} пустой, удаляем`);
           localStorage.removeItem(cacheKey);
         }
       }
     } catch(e) {
-      console.warn('Ошибка чтения кэша:', e);
       localStorage.removeItem(cacheKey);
     }
   }
   
-  try {
-    const res = await Promise.race([
-  fetch(url.toString()),
-  new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 120000))
-]);
+  // ✅ Ретраи: 3 попытки с паузой
+  const maxAttempts = 3;
+  let lastError = null;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url.toString(), {}, 60000);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      
+      const json = await res.json();
+      
+      // Сохраняем в кэш только если есть данные
+      if (json.data && json.data.length > 0) {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          timestamp: Date.now(),
+          data: json
+        }));
+        console.log(`💾 Кэш сохранён для ${params.action}: ${json.data.length} записей`);
+      } else {
+        console.warn(`⚠️ Нет данных для ${params.action}, кэш не сохранён`);
+      }
+      
+      return json;
+      
+    } catch(e) {
+      lastError = e;
+      console.warn(`⚠️ Попытка ${attempt}/${maxAttempts} для ${params.action} — ${e.message}`);
+      
+      if (attempt < maxAttempts) {
+        await sleep(1000 * attempt); // 1 сек, 2 сек
+      }
+    }
+  }
+  
+  // Все попытки провалились — используем старый кэш
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      if (data.data && data.data.data && data.data.data.length > 0) {
+        console.warn(`⚠️ Все попытки провалились, используем старый кэш для ${params.action}`);
+        return data.data;
+      }
+    } catch(e2) {
+      localStorage.removeItem(cacheKey);
+    }
+  }
+  
+  const msg = lastError?.message || 'Ошибка запроса';
+  showToast(msg, 'error');
+  throw lastError;
+}
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     
