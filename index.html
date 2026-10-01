@@ -780,10 +780,15 @@ th.sortable.sorted-desc::after {
       <div class="card-title">Структура по счетам</div>
       <div class="chart-wrap"><canvas id="chart-inv-accounts"></canvas></div>
     </div>
-    <div class="card">
-      <div class="card-title">🏆 Топ-10 позиций</div>
-      <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
-    </div>
+   <div class="card">
+  <div class="card-title">📊 Детальная таблица позиций</div>
+  <div id="inv-portfolio-detailed"><div class="loader">Загрузка...</div></div>
+</div>
+
+<div class="card">
+  <div class="card-title">🏆 Топ-10 позиций</div>
+  <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
+</div>
   </div>
 
   <!-- ============ ПОДВКЛАДКА: + ОПЕРАЦИЯ ============ -->
@@ -5034,7 +5039,77 @@ async function renderInvestmentsAnalytics() {
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmt(c.raw) } } }, scales: { x: { ticks: { color: '#8892a4', callback: v => fmtShort(v) }, grid: { color: '#2e3148' } }, y: { ticks: { color: '#e2e8f0' }, grid: { display: false } } } }
   });
   
-  const topEl = document.getElementById('inv-top-positions');
+  // ✅ Новая таблица: средняя цена, текущая, разница + окупаемость дивидендами
+await renderPortfolioDetailedTable();
+
+const topEl = document.getElementById('inv-top-positions');
+  async function renderPortfolioDetailedTable() {
+  const container = document.getElementById('inv-portfolio-detailed');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="loader">Загрузка...</div>';
+  
+  // Загружаем портфель и окупаемость
+  const portfolio = await loadPortfolio();
+  const positions = portfolio.positions || [];
+  
+  let coverage = {};
+  try {
+    const r = await apiGet({ action: 'calcDividendCoverage' });
+    coverage = r.data || {};
+  } catch(e) {
+    console.warn('Не удалось загрузить окупаемость:', e);
+  }
+  
+  // Фильтруем только акции для расчёта окупаемости, но показываем всё
+  const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
+  
+  if (!sorted.length) {
+    container.innerHTML = '<div class="empty">Нет данных</div>';
+    return;
+  }
+  
+  let html = '<div class="table-wrap"><table><thead><tr>' +
+    '<th>Тикер</th>' +
+    '<th>Кол-во</th>' +
+    '<th>Ср. цена</th>' +
+    '<th>Тек. цена</th>' +
+    '<th>Δ%</th>' +
+    '<th>Δ ₽</th>' +
+    '<th title="Сколько акций уже полностью окупились дивидендами">Бесплатных</th>' +
+    '</tr></thead><tbody>';
+  
+  sorted.forEach(p => {
+    const avgPrice = p.avgPrice || 0;
+    const curPrice = p.currentPrice || 0;
+    const diffPct = avgPrice > 0 ? ((curPrice - avgPrice) / avgPrice) * 100 : 0;
+    const diffRub = (curPrice - avgPrice) * (p.quantity || 0);
+    
+    const diffCls = diffPct > 0 ? 'c-income' : diffPct < 0 ? 'c-expense' : '';
+    const diffSign = diffPct > 0 ? '+' : '';
+    
+    // Окупаемость
+const cov = coverage[p.ticker];
+let freeStr = '—';
+
+if (cov) {
+  freeStr = `${cov.freeShares} из ${cov.totalShares}`;
+}
+    
+    html += `<tr>
+  <td><strong>${p.ticker}</strong></td>
+  <td>${p.quantity}</td>
+  <td>${fmt(avgPrice)}</td>
+  <td>${fmt(curPrice)}</td>
+  <td class="${diffCls}" style="font-weight:600">${diffSign}${diffPct.toFixed(2)}%</td>
+  <td class="${diffCls}" style="font-weight:600">${diffSign}${fmt(diffRub)}</td>
+  <td>${freeStr}</td>
+</tr>`;
+  });
+  
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
   const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
   
   if (!sorted.length) {
