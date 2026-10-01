@@ -5061,7 +5061,6 @@ const topEl = document.getElementById('inv-top-positions');
     console.warn('Не удалось загрузить окупаемость:', e);
   }
   
-  // Фильтруем только акции для расчёта окупаемости, но показываем всё
   const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
   
   if (!sorted.length) {
@@ -5076,35 +5075,67 @@ const topEl = document.getElementById('inv-top-positions');
     '<th>Тек. цена</th>' +
     '<th>Δ%</th>' +
     '<th>Δ ₽</th>' +
-    '<th title="Сколько акций уже полностью окупились дивидендами">Бесплатных</th>' +
+    '<th title="Сколько акций уже полностью окупились дивидендами">🎁 Бесплатных</th>' +
     '</tr></thead><tbody>';
   
   sorted.forEach(p => {
+    const isCurrencyBond = p.asset_type === 'currency_bond';
+    
     const avgPrice = p.avgPrice || 0;
     const curPrice = p.currentPrice || 0;
-    const diffPct = avgPrice > 0 ? ((curPrice - avgPrice) / avgPrice) * 100 : 0;
-    const diffRub = (curPrice - avgPrice) * (p.quantity || 0);
     
-    const diffCls = diffPct > 0 ? 'c-income' : diffPct < 0 ? 'c-expense' : '';
-    const diffSign = diffPct > 0 ? '+' : '';
+    let avgPriceStr, curPriceStr, diffPctStr, diffRubStr, diffCls = '';
     
-    // Окупаемость
-const cov = coverage[p.ticker];
-let freeStr = '—';
-
-if (cov) {
-  freeStr = `${cov.freeShares} из ${cov.totalShares}`;
-}
+    if (isCurrencyBond) {
+      // ✅ Для валютных облигаций — Δ через рублёвую стоимость
+      const totalCost = p.totalCost || 0;
+      const currentValue = p.currentValue || 0;
+      const diffRub = currentValue - totalCost;
+      const diffPct = totalCost > 0 ? (diffRub / totalCost) * 100 : 0;
+      const diffSign = diffPct > 0 ? '+' : '';
+      
+      avgPriceStr = fmt(avgPrice);
+      curPriceStr = curPrice ? curPrice.toFixed(2) + '%' : '—';
+      diffPctStr = `${diffSign}${diffPct.toFixed(2)}%`;
+      diffRubStr = `${diffSign}${fmt(diffRub)}`;
+      diffCls = diffPct > 0 ? 'c-income' : diffPct < 0 ? 'c-expense' : '';
+      
+    } else {
+      // ✅ Для остальных — как было
+      const diffPct = avgPrice > 0 ? ((curPrice - avgPrice) / avgPrice) * 100 : 0;
+      const diffRub = (curPrice - avgPrice) * (p.quantity || 0);
+      const diffSign = diffPct > 0 ? '+' : '';
+      
+      avgPriceStr = fmt(avgPrice);
+      curPriceStr = curPrice ? curPrice.toFixed(2) + ' ₽' : '—';
+      diffPctStr = `${diffSign}${diffPct.toFixed(2)}%`;
+      diffRubStr = `${diffSign}${fmt(diffRub)}`;
+      diffCls = diffPct > 0 ? 'c-income' : diffPct < 0 ? 'c-expense' : '';
+    }
+    
+    // Окупаемость дивидендами (только акции)
+    const cov = coverage[p.ticker];
+    let freeStr = '—';
+    let freeCls = '';
+    
+    if (cov) {
+      if (cov.freeShares > 0) {
+        freeStr = `${cov.freeShares} из ${cov.totalShares}`;
+        freeCls = cov.freeShares === cov.totalShares ? 'c-income' : 'c-accent';
+      } else {
+        freeStr = `0 из ${cov.totalShares}`;
+      }
+    }
     
     html += `<tr>
-  <td><strong>${p.ticker}</strong></td>
-  <td>${p.quantity}</td>
-  <td>${fmt(avgPrice)}</td>
-  <td>${fmt(curPrice)}</td>
-  <td class="${diffCls}" style="font-weight:600">${diffSign}${diffPct.toFixed(2)}%</td>
-  <td class="${diffCls}" style="font-weight:600">${diffSign}${fmt(diffRub)}</td>
-  <td>${freeStr}</td>
-</tr>`;
+      <td><strong>${p.ticker}</strong></td>
+      <td>${p.quantity}</td>
+      <td>${avgPriceStr}</td>
+      <td>${curPriceStr}</td>
+      <td class="${diffCls}" style="font-weight:600">${diffPctStr}</td>
+      <td class="${diffCls}" style="font-weight:600">${diffRubStr}</td>
+      <td class="${freeCls}" style="font-weight:600">${freeStr}</td>
+    </tr>`;
   });
   
   html += '</tbody></table></div>';
