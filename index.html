@@ -529,6 +529,27 @@ th.sortable.sorted-desc::after {
   padding-top: 12px;
   padding-bottom: 12px;
 }
+    .inv-section-header td {
+  background: var(--surface2) !important;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+.inv-section-header:hover td {
+  background: var(--surface) !important;
+  cursor: pointer;
+}
+
+.inv-sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.inv-sortable:hover {
+  color: var(--accent);
+}
   </style>
 </head>
 <body>
@@ -4954,6 +4975,23 @@ async function renderInvestmentsSummary() {
   totalEl.className = 'stat-value ' + (total > 0 ? 'c-income' : total < 0 ? 'c-expense' : 'c-accent');
 }
 
+// Глобальное состояние сортировки
+const invSortState = {
+  stock: { key: 'value', asc: false },
+  bond: { key: 'value', asc: false },
+  fund: { key: 'value', asc: false },
+  money_market: { key: 'value', asc: false },
+  gold: { key: 'value', asc: false },
+};
+
+const invCollapsed = {
+  stock: false,
+  bond: false,
+  fund: false,
+  money_market: false,
+  gold: false,
+};
+
 async function renderInvestmentsPortfolio() {
   const container = document.getElementById('inv-portfolio-list');
   if (!container) return;
@@ -4969,68 +5007,115 @@ async function renderInvestmentsPortfolio() {
     return;
   }
   
-  // Считаем общую стоимость для колонки «Доля»
+  // Общая стоимость для колонки «Доля»
   const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
   
-  // Группируем по типу
-  const moneyMarket = positions.filter(p => p.asset_type === 'money_market');
-  const bonds = positions.filter(p => p.asset_type === 'bond' || p.asset_type === 'currency_bond');
-  const stocks = positions.filter(p => 
-    p.asset_type !== 'money_market' && 
-    p.asset_type !== 'bond' && 
-    p.asset_type !== 'currency_bond'
-  );
-  
-  // Сортировка по стоимости внутри группы
-  bonds.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
-  stocks.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
-  moneyMarket.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
+  // Разделяем на 5 групп
+  const groups = {
+    stock: positions.filter(p => p.asset_type === 'stock'),
+    bond: positions.filter(p => p.asset_type === 'bond' || p.asset_type === 'currency_bond'),
+    fund: positions.filter(p => p.asset_type === 'fund' || p.asset_type === 'etf' || p.asset_type === 'zpif'),
+    money_market: positions.filter(p => p.asset_type === 'money_market'),
+    gold: positions.filter(p => p.asset_type === 'gold' || p.asset_type === 'metal'),
+  };
   
   let html = '<div class="inv-table-wrap"><table class="inv-table">';
   
-  // Заголовок
+  // Заголовки с сортировкой
   html += `<thead><tr>
     <th>Актив</th>
-    <th>Кол-во</th>
-    <th>Вложено</th>
-    <th>Текущая</th>
-    <th>Доход %</th>
-    <th>Выплаты</th>
-    <th>Прибыль</th>
+    <th class="inv-sortable" onclick="invSort('qty')">Кол-во</th>
+    <th class="inv-sortable" onclick="invSort('invested')">Вложено</th>
+    <th class="inv-sortable" onclick="invSort('value')">Текущая</th>
+    <th class="inv-sortable" onclick="invSort('percent')">Доход %</th>
+    <th class="inv-sortable" onclick="invSort('payouts')">Выплаты</th>
+    <th class="inv-sortable" onclick="invSort('profit')">Прибыль</th>
     <th>Доля</th>
   </tr></thead><tbody>`;
   
-  // Облигации
-  if (bonds.length > 0) {
-    html += `<tr><td colspan="8" class="inv-subheader">📜 Облигации (${bonds.length})</td></tr>`;
-    bonds.forEach(p => { html += renderInvRow(p, totalValue); });
-  }
+  // Рендерим каждый раздел
+  const labels = {
+    stock: '📈 Акции',
+    bond: '📜 Облигации',
+    fund: '🏦 Фонды',
+    money_market: '💵 Денежный рынок',
+    gold: '🥇 Золото',
+  };
   
-  // Акции
-  if (stocks.length > 0) {
-    html += `<tr><td colspan="8" class="inv-subheader">📈 Акции и фонды (${stocks.length})</td></tr>`;
-    stocks.forEach(p => { html += renderInvRow(p, totalValue); });
-  }
-  
-  // Денежный рынок
-  if (moneyMarket.length > 0) {
-    html += `<tr><td colspan="8" class="inv-subheader">💵 Денежный рынок (кэш-счёт)</td></tr>`;
-    moneyMarket.forEach(p => { html += renderInvRow(p, totalValue, true); });
-  }
+  ['stock', 'bond', 'fund', 'money_market', 'gold'].forEach(type => {
+    const group = groups[type];
+    if (!group.length) return;
+    
+    // Сортируем
+    const sort = invSortState[type];
+    const sorted = [...group].sort((a, b) => {
+      let va, vb;
+      switch (sort.key) {
+        case 'qty': va = a.quantity || 0; vb = b.quantity || 0; break;
+        case 'invested': va = a.totalBuyCost || 0; vb = b.totalBuyCost || 0; break;
+        case 'value': va = a.currentValue || 0; vb = b.currentValue || 0; break;
+        case 'percent': va = a.profitPercent || 0; vb = b.profitPercent || 0; break;
+        case 'payouts': va = (a.totalCoupons || 0) + (a.totalAmortization || 0); vb = (b.totalCoupons || 0) + (b.totalAmortization || 0); break;
+        case 'profit': va = a.profit || 0; vb = b.profit || 0; break;
+        default: va = a.currentValue || 0; vb = b.currentValue || 0;
+      }
+      return sort.asc ? va - vb : vb - va;
+    });
+    
+    // Считаем суммы по разделу
+    const sumInvested = group.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+    const sumValue = group.reduce((s, p) => s + (p.currentValue || 0), 0);
+    const sumPayouts = group.reduce((s, p) => s + (p.totalCoupons || 0) + (p.totalAmortization || 0), 0);
+    const sumProfit = group.reduce((s, p) => s + (p.profit || 0), 0);
+    const sumShare = totalValue > 0 ? (sumValue / totalValue * 100) : 0;
+    
+    // ✅ Средневзвешенный доход % = сумма прибыли / сумма вложенного
+    const weightedPercent = sumInvested > 0 ? (sumProfit / sumInvested * 100) : 0;
+    
+    const percentClass = weightedPercent > 0 ? 'inv-profit-pos' : weightedPercent < 0 ? 'inv-profit-neg' : '';
+    const profitClass = sumProfit > 0 ? 'inv-profit-pos' : sumProfit < 0 ? 'inv-profit-neg' : '';
+    const isCollapsed = invCollapsed[type];
+    const arrow = isCollapsed ? '▸' : '▾';
+    
+    // Строка-заголовок раздела
+    html += `<tr class="inv-section-header" onclick="invToggleSection('${type}')">
+      <td style="text-align:left;cursor:pointer">
+        <span style="margin-right:6px;color:var(--text2)">${arrow}</span>
+        <span style="font-weight:600">${labels[type]}</span>
+        <span style="color:var(--text2);font-size:11px;margin-left:6px">(${group.length})</span>
+      </td>
+      <td>—</td>
+      <td>${fmt(sumInvested)}</td>
+      <td>${fmt(sumValue)}</td>
+      <td class="${percentClass}">${weightedPercent >= 0 ? '+' : ''}${weightedPercent.toFixed(2)}%</td>
+      <td>${sumPayouts > 0 ? fmt(sumPayouts) : '—'}</td>
+      <td class="${profitClass}">${sumProfit >= 0 ? '+' : ''}${fmt(sumProfit)}</td>
+      <td>${sumShare.toFixed(1)}%</td>
+    </tr>`;
+    
+    // Позиции раздела
+    if (!isCollapsed) {
+      sorted.forEach(p => {
+        html += renderInvRow(p, totalValue);
+      });
+    }
+  });
   
   // Итого
   const totalInvested = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
   const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
-  const profitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
+  const totalWeightedPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
+  const totalPercentClass = totalWeightedPercent > 0 ? 'inv-profit-pos' : totalWeightedPercent < 0 ? 'inv-profit-neg' : '';
+  const totalProfitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
   
   html += `<tr class="inv-total-row">
     <td>ВСЕГО</td>
     <td>—</td>
     <td>${fmt(totalInvested)}</td>
     <td>${fmt(totalValue)}</td>
+    <td class="${totalPercentClass}">${totalWeightedPercent >= 0 ? '+' : ''}${totalWeightedPercent.toFixed(2)}%</td>
     <td>—</td>
-    <td>—</td>
-    <td class="${profitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
+    <td class="${totalProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
     <td>100%</td>
   </tr>`;
   
@@ -5038,9 +5123,29 @@ async function renderInvestmentsPortfolio() {
   container.innerHTML = html;
 }
 
-// Рендер одной строки таблицы
-function renderInvRow(p, totalValue, isMoneyMarket = false) {
-  // Иконка по типу
+// Сворачивание/разворачивание раздела
+function invToggleSection(type) {
+  invCollapsed[type] = !invCollapsed[type];
+  renderInvestmentsPortfolio();
+}
+
+// Сортировка по клику на заголовок
+function invSort(key) {
+  // Определяем активную группу (первая развёрнутая)
+  // Проще: применяем ко всем группам
+  ['stock', 'bond', 'fund', 'money_market', 'gold'].forEach(type => {
+    if (invSortState[type].key === key) {
+      invSortState[type].asc = !invSortState[type].asc;
+    } else {
+      invSortState[type].key = key;
+      invSortState[type].asc = false;
+    }
+  });
+  renderInvestmentsPortfolio();
+}
+
+// Рендер одной строки
+function renderInvRow(p, totalValue) {
   const iconMap = {
     stock: '📈',
     bond: '📜',
@@ -5050,42 +5155,37 @@ function renderInvRow(p, totalValue, isMoneyMarket = false) {
     zpif: '🏢',
     money_market: '💵',
     gold: '🥇',
+    metal: '🥇',
   };
   const icon = iconMap[p.asset_type] || '📄';
   
-  // Прибыль
   const profit = p.profit || 0;
   const profitClass = profit > 0 ? 'inv-profit-pos' : profit < 0 ? 'inv-profit-neg' : '';
   const profitSign = profit > 0 ? '+' : '';
   
-  // Доход %
   const percent = p.profitPercent || 0;
   const percentClass = percent > 0 ? 'inv-profit-pos' : percent < 0 ? 'inv-profit-neg' : '';
   const percentSign = percent > 0 ? '+' : '';
   
-  // Выплаты (купоны + дивиденды + амортизации)
   const payouts = (p.totalCoupons || 0) + (p.totalAmortization || 0);
   const payoutsStr = payouts > 0 ? fmt(payouts) : '—';
   
-  // Доля в портфеле
   const share = totalValue > 0 && p.currentValue !== null ? (p.currentValue / totalValue * 100) : 0;
   const shareStr = share.toFixed(1) + '%';
-  const barWidth = Math.min(share * 2, 40); // визуально до 40px
+  const barWidth = Math.min(share * 2, 40);
   
-  // Для LQDT вложено показываем как прочерк
+  const isMoneyMarket = p.asset_type === 'money_market';
   const investedStr = isMoneyMarket ? '—' : fmt(p.totalBuyCost || 0);
   
-  // Кол-во
   const qtyStr = p.quantity !== null && p.quantity !== undefined 
     ? (Number.isInteger(p.quantity) ? p.quantity : p.quantity.toFixed(2))
     : '—';
   
-  // Текущая стоимость
   const currentStr = p.currentValue !== null ? fmt(p.currentValue) : '—';
   
-  return `<tr>
+  return `<tr class="inv-position-row">
     <td>
-      <div class="inv-asset-cell">
+      <div class="inv-asset-cell" style="padding-left:24px">
         <div class="inv-asset-icon">${icon}</div>
         <div>
           <div class="inv-asset-name">${p.name || p.ticker}</div>
