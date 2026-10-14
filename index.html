@@ -804,6 +804,7 @@ th.sortable.sorted-desc::after {
   <!-- Подвкладки -->
   <div class="period-row period-row-sticky" id="investments-tabs">
     <button class="period-btn active" onclick="setInvestmentsTab('portfolio', this)">📊 Портфель</button>
+    <button class="period-btn" onclick="setInvestmentsTab('closed', this)">✅ Закрытые</button>
     <button class="period-btn" onclick="setInvestmentsTab('deals', this)">💼 Сделки</button>
     <button class="period-btn" onclick="setInvestmentsTab('payments', this)">💰 Выплаты</button>
     <button class="period-btn" onclick="setInvestmentsTab('analytics', this)">📈 Аналитика</button>
@@ -844,7 +845,22 @@ th.sortable.sorted-desc::after {
     <div id="inv-portfolio-list"><div class="loader">Загрузка...</div></div>
   </div>
 </div>
-
+<!-- ============ ПОДВКЛАДКА: ЗАКРЫТЫЕ ============ -->
+<div id="inv-tab-closed" class="inv-tab-content" style="display:none">
+  <div class="card">
+    <div class="section-header">
+      <div class="card-title" style="margin:0">Закрытые позиции</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="form-input" id="inv-closed-filter" style="width:auto;padding:5px 10px" onchange="renderInvestmentsClosed()">
+          <option value="all">Все</option>
+          <option value="positive">Прибыльные</option>
+          <option value="negative">Убыточные</option>
+        </select>
+      </div>
+    </div>
+    <div id="inv-closed-list"><div class="loader">Загрузка...</div></div>
+  </div>
+</div>
   <!-- ============ ПОДВКЛАДКА: СДЕЛКИ ============ -->
   <div id="inv-tab-deals" class="inv-tab-content" style="display:none">
     <div class="card">
@@ -4892,6 +4908,7 @@ function setInvestmentsTab(tab, btn) {
   if (target) target.style.display = 'block';
   
   if (tab === 'portfolio') renderInvestmentsPortfolio();
+  if (tab === 'closed') renderInvestmentsClosed();
   if (tab === 'deals') renderInvestmentsDeals();
   if (tab === 'payments') renderInvestmentsPayments();
   if (tab === 'analytics') renderInvestmentsAnalytics();
@@ -5195,7 +5212,155 @@ function renderInvRow(p, totalValue) {
     </td>
   </tr>`;
 }
-
+// ============================================================
+// ПОДВКЛАДКА: ЗАКРЫТЫЕ ПОЗИЦИИ
+// ============================================================
+async function renderInvestmentsClosed() {
+  const container = document.getElementById('inv-closed-list');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="loader">Загрузка...</div>';
+  
+  const portfolio = await loadPortfolio();
+  let closed = portfolio.closedPositions || [];
+  
+  // Фильтр
+  const filter = document.getElementById('inv-closed-filter')?.value || 'all';
+  if (filter === 'positive') closed = closed.filter(p => (p.profit || 0) > 0);
+  if (filter === 'negative') closed = closed.filter(p => (p.profit || 0) < 0);
+  
+  // Сортировка по дате закрытия (новые сверху)
+  closed = [...closed].sort((a, b) => {
+    const dateA = a.lastSellDate || '';
+    const dateB = b.lastSellDate || '';
+    return dateB.localeCompare(dateA);
+  });
+  
+  if (!closed.length) {
+    container.innerHTML = '<div class="empty">Нет закрытых позиций' + (filter !== 'all' ? ' с таким фильтром' : '') + '</div>';
+    return;
+  }
+  
+  // ===== СВОДКА =====
+  const totalProfit = closed.reduce((s, p) => s + (p.profit || 0), 0);
+  const totalInvested = closed.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+  const totalProceeds = closed.reduce((s, p) => s + (p.totalProceeds || 0), 0);
+  const totalPayouts = closed.reduce((s, p) => s + (p.totalCoupons || 0) + (p.totalAmortization || 0), 0);
+  const totalPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
+  
+  const profitable = closed.filter(p => (p.profit || 0) > 0);
+  const unprofitable = closed.filter(p => (p.profit || 0) < 0);
+  
+  const profitClass = totalProfit > 0 ? 'c-income' : totalProfit < 0 ? 'c-expense' : 'c-text';
+  
+  let html = '';
+  
+  // Сводные карточки
+  html += `<div class="stats-row" style="margin-bottom:16px;">
+    <div class="stat-card">
+      <div class="stat-label">📊 Закрытых позиций</div>
+      <div class="stat-value c-text">${closed.length}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">💼 Всего вложено</div>
+      <div class="stat-value c-text">${fmt(totalInvested)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">💰 Получено (продажи + выплаты)</div>
+      <div class="stat-value c-accent">${fmt(totalProceeds + totalPayouts)}</div>
+    </div>
+    <div class="stat-card" style="background:${totalProfit > 0 ? 'rgba(72,187,120,0.08)' : totalProfit < 0 ? 'rgba(252,129,129,0.08)' : 'var(--surface)'};border-color:${totalProfit > 0 ? 'rgba(72,187,120,0.3)' : totalProfit < 0 ? 'rgba(252,129,129,0.3)' : 'var(--border)'}">
+      <div class="stat-label">🎯 Итоговый P&L</div>
+      <div class="stat-value ${profitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">${totalPercent >= 0 ? '+' : ''}${totalPercent.toFixed(2)}%</div>
+    </div>
+  </div>`;
+  
+  // ===== ТАБЛИЦА =====
+  html += '<div class="inv-table-wrap"><table class="inv-table">';
+  
+  // Colgroup — фиксированные ширины
+  html += `<colgroup>
+    <col style="width: 24%">
+    <col style="width: 11%">
+    <col style="width: 11%">
+    <col style="width: 11%">
+    <col style="width: 11%">
+    <col style="width: 11%">
+    <col style="width: 12%">
+    <col style="width: 9%">
+  </colgroup>`;
+  
+  // Заголовки
+  html += `<thead><tr>
+    <th>Актив</th>
+    <th>Вход</th>
+    <th>Выход</th>
+    <th>Вложено</th>
+    <th>Выплаты</th>
+    <th>Продано</th>
+    <th>Прибыль</th>
+    <th>%</th>
+  </tr></thead><tbody>`;
+  
+  // Строки
+  closed.forEach(p => {
+    const profit = p.profit || 0;
+    const percent = p.profitPercent || 0;
+    const profitClass = profit > 0 ? 'inv-profit-pos' : profit < 0 ? 'inv-profit-neg' : '';
+    const percentClass = percent > 0 ? 'inv-profit-pos' : percent < 0 ? 'inv-profit-neg' : '';
+    const profitSign = profit > 0 ? '+' : '';
+    const percentSign = percent > 0 ? '+' : '';
+    
+    const payouts = (p.totalCoupons || 0) + (p.totalAmortization || 0);
+    
+    const iconMap = {
+      stock: '📈', bond: '📜', currency_bond: '💱',
+      fund: '🏦', etf: '📊', zpif: '🏢',
+      money_market: '💵', gold: '🥇', metal: '🥇',
+    };
+    const icon = iconMap[p.asset_type] || '📄';
+    
+    // Даты
+    const firstBuy = p.firstBuyDate ? formatDate(p.firstBuyDate) : '—';
+    const lastSell = p.lastSellDate ? formatDate(p.lastSellDate) : '—';
+    
+    html += `<tr>
+      <td>
+        <div class="inv-asset-cell">
+          <div class="inv-asset-icon">${icon}</div>
+          <div>
+            <div class="inv-asset-name">${p.name || p.ticker}</div>
+            <div class="inv-asset-ticker">${p.ticker} · ${p.account || ''}</div>
+          </div>
+        </div>
+      </td>
+      <td style="font-size:11px;color:var(--text2)">${firstBuy}</td>
+      <td style="font-size:11px;color:var(--text2)">${lastSell}</td>
+      <td>${fmt(p.totalBuyCost || 0)}</td>
+      <td>${payouts > 0 ? fmt(payouts) : '—'}</td>
+      <td>${fmt(p.totalProceeds || 0)}</td>
+      <td class="${profitClass}">${profitSign}${fmt(profit)}</td>
+      <td class="${percentClass}">${percentSign}${percent.toFixed(2)}%</td>
+    </tr>`;
+  });
+  
+  // Итоговая строка
+  html += `<tr class="inv-total-row">
+    <td>ВСЕГО (${closed.length})</td>
+    <td>—</td>
+    <td>—</td>
+    <td>${fmt(totalInvested)}</td>
+    <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
+    <td>${fmt(totalProceeds)}</td>
+    <td class="${profitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
+    <td class="${profitClass}">${totalPercent >= 0 ? '+' : ''}${totalPercent.toFixed(2)}%</td>
+  </tr>`;
+  
+  html += '</tbody></table></div>';
+  
+  container.innerHTML = html;
+}
 async function renderInvestmentsDeals() {
   const container = document.getElementById('inv-deals-list');
   if (!container) return;
