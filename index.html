@@ -415,10 +415,16 @@ th.sortable.sorted-desc::after {
   overflow-x: auto;
 }
 
+/* Таблица инвестиционного портфеля */
+.inv-table-wrap {
+  overflow-x: auto;
+}
+
 .inv-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  min-width: 800px;
 }
 
 .inv-table th {
@@ -437,9 +443,38 @@ th.sortable.sorted-desc::after {
   z-index: 2;
 }
 
-.inv-table th:first-child,
-.inv-table th:nth-child(2) {
+.inv-table th:first-child {
   text-align: left;
+  min-width: 220px;
+}
+
+.inv-table th:nth-child(2) {
+  text-align: right;
+  min-width: 80px;
+}
+
+.inv-table th:nth-child(3) {
+  min-width: 110px;
+}
+
+.inv-table th:nth-child(4) {
+  min-width: 110px;
+}
+
+.inv-table th:nth-child(5) {
+  min-width: 90px;
+}
+
+.inv-table th:nth-child(6) {
+  min-width: 100px;
+}
+
+.inv-table th:nth-child(7) {
+  min-width: 115px;
+}
+
+.inv-table th:nth-child(8) {
+  min-width: 80px;
 }
 
 .inv-table td {
@@ -448,26 +483,23 @@ th.sortable.sorted-desc::after {
   border-bottom: 1px solid var(--border);
   color: var(--text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.inv-table td:first-child,
-.inv-table td:nth-child(2) {
+.inv-table td:first-child {
   text-align: left;
+  overflow: visible;
 }
 
 .inv-table tr:hover td {
   background: rgba(108,99,255,0.04);
 }
 
-.inv-table tr.inv-row-clickable {
-  cursor: pointer;
-}
-
 .inv-asset-cell {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 180px;
 }
 
 .inv-asset-icon {
@@ -513,15 +545,6 @@ th.sortable.sorted-desc::after {
   margin-right: 6px;
 }
 
-.inv-subheader {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text2);
-  padding: 14px 12px 6px;
-  font-weight: 600;
-}
-
 .inv-total-row td {
   font-weight: 700;
   background: var(--surface2);
@@ -529,16 +552,22 @@ th.sortable.sorted-desc::after {
   padding-top: 12px;
   padding-bottom: 12px;
 }
-    .inv-section-header td {
+
+.inv-section-header td {
   background: var(--surface2) !important;
   font-weight: 600;
   border-bottom: 1px solid var(--border);
   padding: 10px 12px;
+  text-align: right;
+}
+
+.inv-section-header td:first-child {
+  text-align: left;
+  cursor: pointer;
 }
 
 .inv-section-header:hover td {
   background: var(--surface) !important;
-  cursor: pointer;
 }
 
 .inv-sortable {
@@ -549,52 +578,6 @@ th.sortable.sorted-desc::after {
 
 .inv-sortable:hover {
   color: var(--accent);
-}
-    .inv-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  table-layout: fixed;   /* ← КЛЮЧЕВОЕ: фиксированная раскладка */
-}
-
-.inv-table th:nth-child(1),
-.inv-table td:nth-child(1) {
-  width: 30%;   /* Актив — самый широкий */
-}
-
-.inv-table th:nth-child(2),
-.inv-table td:nth-child(2) {
-  width: 8%;    /* Кол-во */
-}
-
-.inv-table th:nth-child(3),
-.inv-table td:nth-child(3) {
-  width: 12%;   /* Вложено */
-}
-
-.inv-table th:nth-child(4),
-.inv-table td:nth-child(4) {
-  width: 12%;   /* Текущая */
-}
-
-.inv-table th:nth-child(5),
-.inv-table td:nth-child(5) {
-  width: 9%;    /* Доход % */
-}
-
-.inv-table th:nth-child(6),
-.inv-table td:nth-child(6) {
-  width: 10%;   /* Выплаты */
-}
-
-.inv-table th:nth-child(7),
-.inv-table td:nth-child(7) {
-  width: 12%;   /* Прибыль */
-}
-
-.inv-table th:nth-child(8),
-.inv-table td:nth-child(8) {
-  width: 7%;    /* Доля */
 }
   </style>
 </head>
@@ -5231,7 +5214,7 @@ function renderInvRow(p, totalValue) {
   
   return `<tr class="inv-position-row">
     <td>
-      <div class="inv-asset-cell" style="padding-left:24px">
+      <div class="inv-asset-cell">
         <div class="inv-asset-icon">${icon}</div>
         <div>
           <div class="inv-asset-name">${p.name || p.ticker}</div>
