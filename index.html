@@ -5123,23 +5123,28 @@ html += `<thead><tr>
     }
   });
   
-  // Итого
-  const totalInvested = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
-  const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
-  const totalWeightedPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
-  const totalPercentClass = totalWeightedPercent > 0 ? 'inv-profit-pos' : totalWeightedPercent < 0 ? 'inv-profit-neg' : '';
-  const totalProfitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
-  
-  html += `<tr class="inv-total-row">
-    <td>ВСЕГО</td>
-    <td>—</td>
-    <td>${fmt(totalInvested)}</td>
-    <td>${fmt(totalValue)}</td>
-    <td class="${totalPercentClass}">${totalWeightedPercent >= 0 ? '+' : ''}${totalWeightedPercent.toFixed(2)}%</td>
-    <td>—</td>
-    <td class="${totalProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
-    <td>100%</td>
-  </tr>`;
+ // Итого
+const totalInvested = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
+const totalWeightedPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
+const totalPercentClass = totalWeightedPercent > 0 ? 'inv-profit-pos' : totalWeightedPercent < 0 ? 'inv-profit-neg' : '';
+const totalProfitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
+
+// ✅ Сумма выплат за 12 мес и див. доходность
+const totalPayouts = positions.reduce((s, p) => s + (p.payouts12m || 0), 0);
+const totalDivYield = totalInvested > 0 ? (totalPayouts / totalInvested * 100) : 0;
+
+html += `<tr class="inv-total-row">
+  <td>ВСЕГО</td>
+  <td>—</td>
+  <td>${fmt(totalInvested)}</td>
+  <td>${fmt(totalValue)}</td>
+  <td class="${totalPercentClass}">${totalWeightedPercent >= 0 ? '+' : ''}${totalWeightedPercent.toFixed(2)}%</td>
+  <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
+  <td style="color:var(--accent);font-weight:600">${totalDivYield > 0 ? '+' + totalDivYield.toFixed(2) + '%' : '—'}</td>
+  <td class="${totalProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
+  <td>100%</td>
+</tr>`;
   
   html += '</tbody></table></div>';
   container.innerHTML = html;
