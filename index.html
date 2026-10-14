@@ -410,6 +410,125 @@ th.sortable.sorted-desc::after {
   padding: 8px 12px;
   font-size: 12px;
 }
+/* Таблица инвестиционного портфеля */
+.inv-table-wrap {
+  overflow-x: auto;
+}
+
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.inv-table th {
+  background: var(--surface2);
+  color: var(--text2);
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 10px 12px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.inv-table th:first-child,
+.inv-table th:nth-child(2) {
+  text-align: left;
+}
+
+.inv-table td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.inv-table td:first-child,
+.inv-table td:nth-child(2) {
+  text-align: left;
+}
+
+.inv-table tr:hover td {
+  background: rgba(108,99,255,0.04);
+}
+
+.inv-table tr.inv-row-clickable {
+  cursor: pointer;
+}
+
+.inv-asset-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.inv-asset-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.inv-asset-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.inv-asset-ticker {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.inv-profit-pos {
+  color: var(--income);
+  font-weight: 600;
+}
+
+.inv-profit-neg {
+  color: var(--expense);
+  font-weight: 600;
+}
+
+.inv-share-bar {
+  display: inline-block;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.inv-subheader {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text2);
+  padding: 14px 12px 6px;
+  font-weight: 600;
+}
+
+.inv-total-row td {
+  font-weight: 700;
+  background: var(--surface2);
+  border-top: 2px solid var(--accent);
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
   </style>
 </head>
 <body>
@@ -692,28 +811,28 @@ th.sortable.sorted-desc::after {
   </div>
 
   <!-- Сводка (видна на всех подвкладках) -->
-  <div class="stats-row" id="inv-summary" style="margin-bottom:16px;">
-    <div class="stat-card">
-      <div class="stat-label">💼 Вложено</div>
-      <div class="stat-value c-text" id="inv-total-cost">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">📊 Текущая стоимость</div>
-      <div class="stat-value c-accent" id="inv-total-value">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">💵 Прибыль</div>
-      <div class="stat-value" id="inv-total-profit">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">📈 Доходность</div>
-      <div class="stat-value" id="inv-total-percent">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">🏦 Позиций</div>
-      <div class="stat-value c-text" id="inv-positions-count">—</div>
-    </div>
+<div class="stats-row" id="inv-summary" style="margin-bottom:16px;">
+  <div class="stat-card">
+    <div class="stat-label">💼 Вложено</div>
+    <div class="stat-value c-text" id="inv-total-cost">—</div>
   </div>
+  <div class="stat-card">
+    <div class="stat-label">📊 Текущая стоимость</div>
+    <div class="stat-value c-accent" id="inv-total-value">—</div>
+  </div>
+  <div class="stat-card" style="background:rgba(72,187,120,0.08);border-color:rgba(72,187,120,0.3)">
+    <div class="stat-label">📈 Нереализ. P&L</div>
+    <div class="stat-value" id="inv-unrealized-pnl">—</div>
+  </div>
+  <div class="stat-card" style="background:rgba(108,99,255,0.08);border-color:rgba(108,99,255,0.3)">
+    <div class="stat-label">💰 Реализ. P&L</div>
+    <div class="stat-value" id="inv-realized-pnl">—</div>
+  </div>
+  <div class="stat-card" style="background:rgba(108,99,255,0.15);border-color:var(--accent)">
+    <div class="stat-label">🎯 Общий P&L</div>
+    <div class="stat-value" id="inv-total-pnl">—</div>
+  </div>
+</div>
 
   <!-- ============ ПОДВКЛАДКА: ПОРТФЕЛЬ ============ -->
   <div id="inv-tab-portfolio" class="inv-tab-content">
@@ -4813,20 +4932,26 @@ async function renderInvestmentsSummary() {
   const portfolio = await loadPortfolio();
   const totals = portfolio.totals || {};
   
-  document.getElementById('inv-total-cost').textContent = fmt(totals.totalCost || 0);
+  document.getElementById('inv-total-cost').textContent = fmt(totals.totalBuyCost || 0);
   document.getElementById('inv-total-value').textContent = fmt(totals.totalValue || 0);
   
-  const profitEl = document.getElementById('inv-total-profit');
-  const profit = totals.totalProfit || 0;
-  profitEl.textContent = fmt(profit);
-  profitEl.className = 'stat-value ' + (profit > 0 ? 'c-income' : profit < 0 ? 'c-expense' : 'c-text');
+  // Нереализованный P&L
+  const unrealized = totals.totalProfit || 0;
+  const unrealizedEl = document.getElementById('inv-unrealized-pnl');
+  unrealizedEl.textContent = (unrealized >= 0 ? '+' : '') + fmt(unrealized);
+  unrealizedEl.className = 'stat-value ' + (unrealized > 0 ? 'c-income' : unrealized < 0 ? 'c-expense' : 'c-text');
   
-  const percentEl = document.getElementById('inv-total-percent');
-  const percent = totals.totalProfitPercent || 0;
-  percentEl.textContent = (percent >= 0 ? '+' : '') + percent.toFixed(2) + '%';
-  percentEl.className = 'stat-value ' + (percent > 0 ? 'c-income' : percent < 0 ? 'c-expense' : 'c-text');
+  // Реализованный P&L
+  const realized = totals.realizedPnL || 0;
+  const realizedEl = document.getElementById('inv-realized-pnl');
+  realizedEl.textContent = (realized >= 0 ? '+' : '') + fmt(realized);
+  realizedEl.className = 'stat-value ' + (realized > 0 ? 'c-income' : realized < 0 ? 'c-expense' : 'c-text');
   
-  document.getElementById('inv-positions-count').textContent = totals.positionsCount || 0;
+  // Общий P&L
+  const total = totals.totalPnL || 0;
+  const totalEl = document.getElementById('inv-total-pnl');
+  totalEl.textContent = (total >= 0 ? '+' : '') + fmt(total);
+  totalEl.className = 'stat-value ' + (total > 0 ? 'c-income' : total < 0 ? 'c-expense' : 'c-accent');
 }
 
 async function renderInvestmentsPortfolio() {
@@ -4835,6 +4960,7 @@ async function renderInvestmentsPortfolio() {
   
   container.innerHTML = '<div class="loader">Загрузка...</div>';
   await renderInvestmentsSummary();
+  
   const portfolio = await loadPortfolio();
   const positions = portfolio.positions || [];
   
@@ -4843,31 +4969,140 @@ async function renderInvestmentsPortfolio() {
     return;
   }
   
-  let html = '';
-  positions.forEach(p => {
-    const profit = p.profit || 0;
-    const profitPct = p.profitPercent || 0;
-    const profitClass = profit > 0 ? 'positive' : profit < 0 ? 'negative' : '';
-    const profitSign = profit > 0 ? '+' : '';
-    const typeLabel = p.asset_type ? p.asset_type.toUpperCase() : '';
-    
-    html += `
-      <div class="inv-position-row">
-        <div class="inv-pos-left">
-          <div class="inv-pos-ticker">${p.ticker} <span style="font-size:10px;color:var(--text2);margin-left:6px">${typeLabel}</span></div>
-          <div class="inv-pos-meta">${p.name} · ${p.account} · ${p.quantity} шт. × ${p.asset_type === 'currency_bond' && p.currentPriceRub
-  ? p.currentPrice.toFixed(2) + '% (≈ ' + fmt(p.currentPriceRub) + ')'
-  : (p.currentPrice ? p.currentPrice.toFixed(2) + ' ₽' : '?')}</div>
-        </div>
-        <div class="inv-pos-right">
-          <div class="inv-pos-value">${p.currentValue !== null ? fmt(p.currentValue) : '—'}</div>
-          ${p.profit !== null ? `<div class="inv-pos-profit ${profitClass}">${profitSign}${fmt(profit)} (${profitSign}${profitPct.toFixed(2)}%)</div>` : ''}
+  // Считаем общую стоимость для колонки «Доля»
+  const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
+  
+  // Группируем по типу
+  const moneyMarket = positions.filter(p => p.asset_type === 'money_market');
+  const bonds = positions.filter(p => p.asset_type === 'bond' || p.asset_type === 'currency_bond');
+  const stocks = positions.filter(p => 
+    p.asset_type !== 'money_market' && 
+    p.asset_type !== 'bond' && 
+    p.asset_type !== 'currency_bond'
+  );
+  
+  // Сортировка по стоимости внутри группы
+  bonds.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
+  stocks.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
+  moneyMarket.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
+  
+  let html = '<div class="inv-table-wrap"><table class="inv-table">';
+  
+  // Заголовок
+  html += `<thead><tr>
+    <th>Актив</th>
+    <th>Кол-во</th>
+    <th>Вложено</th>
+    <th>Текущая</th>
+    <th>Доход %</th>
+    <th>Выплаты</th>
+    <th>Прибыль</th>
+    <th>Доля</th>
+  </tr></thead><tbody>`;
+  
+  // Облигации
+  if (bonds.length > 0) {
+    html += `<tr><td colspan="8" class="inv-subheader">📜 Облигации (${bonds.length})</td></tr>`;
+    bonds.forEach(p => { html += renderInvRow(p, totalValue); });
+  }
+  
+  // Акции
+  if (stocks.length > 0) {
+    html += `<tr><td colspan="8" class="inv-subheader">📈 Акции и фонды (${stocks.length})</td></tr>`;
+    stocks.forEach(p => { html += renderInvRow(p, totalValue); });
+  }
+  
+  // Денежный рынок
+  if (moneyMarket.length > 0) {
+    html += `<tr><td colspan="8" class="inv-subheader">💵 Денежный рынок (кэш-счёт)</td></tr>`;
+    moneyMarket.forEach(p => { html += renderInvRow(p, totalValue, true); });
+  }
+  
+  // Итого
+  const totalInvested = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+  const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
+  const profitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
+  
+  html += `<tr class="inv-total-row">
+    <td>ВСЕГО</td>
+    <td>—</td>
+    <td>${fmt(totalInvested)}</td>
+    <td>${fmt(totalValue)}</td>
+    <td>—</td>
+    <td>—</td>
+    <td class="${profitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
+    <td>100%</td>
+  </tr>`;
+  
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// Рендер одной строки таблицы
+function renderInvRow(p, totalValue, isMoneyMarket = false) {
+  // Иконка по типу
+  const iconMap = {
+    stock: '📈',
+    bond: '📜',
+    currency_bond: '💱',
+    fund: '🏦',
+    etf: '📊',
+    zpif: '🏢',
+    money_market: '💵',
+    gold: '🥇',
+  };
+  const icon = iconMap[p.asset_type] || '📄';
+  
+  // Прибыль
+  const profit = p.profit || 0;
+  const profitClass = profit > 0 ? 'inv-profit-pos' : profit < 0 ? 'inv-profit-neg' : '';
+  const profitSign = profit > 0 ? '+' : '';
+  
+  // Доход %
+  const percent = p.profitPercent || 0;
+  const percentClass = percent > 0 ? 'inv-profit-pos' : percent < 0 ? 'inv-profit-neg' : '';
+  const percentSign = percent > 0 ? '+' : '';
+  
+  // Выплаты (купоны + дивиденды + амортизации)
+  const payouts = (p.totalCoupons || 0) + (p.totalAmortization || 0);
+  const payoutsStr = payouts > 0 ? fmt(payouts) : '—';
+  
+  // Доля в портфеле
+  const share = totalValue > 0 && p.currentValue !== null ? (p.currentValue / totalValue * 100) : 0;
+  const shareStr = share.toFixed(1) + '%';
+  const barWidth = Math.min(share * 2, 40); // визуально до 40px
+  
+  // Для LQDT вложено показываем как прочерк
+  const investedStr = isMoneyMarket ? '—' : fmt(p.totalBuyCost || 0);
+  
+  // Кол-во
+  const qtyStr = p.quantity !== null && p.quantity !== undefined 
+    ? (Number.isInteger(p.quantity) ? p.quantity : p.quantity.toFixed(2))
+    : '—';
+  
+  // Текущая стоимость
+  const currentStr = p.currentValue !== null ? fmt(p.currentValue) : '—';
+  
+  return `<tr>
+    <td>
+      <div class="inv-asset-cell">
+        <div class="inv-asset-icon">${icon}</div>
+        <div>
+          <div class="inv-asset-name">${p.name || p.ticker}</div>
+          <div class="inv-asset-ticker">${p.ticker} · ${p.account || ''}</div>
         </div>
       </div>
-    `;
-  });
-  
-  container.innerHTML = html;
+    </td>
+    <td>${qtyStr}</td>
+    <td>${investedStr}</td>
+    <td>${currentStr}</td>
+    <td class="${percentClass}">${percentSign}${percent.toFixed(2)}%</td>
+    <td>${payoutsStr}</td>
+    <td class="${profitClass}">${profitSign}${fmt(profit)}</td>
+    <td>
+      <span class="inv-share-bar" style="width:${barWidth}px"></span>${shareStr}
+    </td>
+  </tr>`;
 }
 
 async function renderInvestmentsDeals() {
