@@ -5373,21 +5373,21 @@ async function renderInvestmentsClosed() {
     </tr>`;
   });
   
-  // Итоговая строка
-  const totalPayouts = positions.reduce((s, p) => s + (p.payouts12m || 0), 0);
-const totalDivYield = totalInvested > 0 ? (totalPayouts / totalInvested * 100) : 0;
+   // Итоговая строка (для закрытых — 8 колонок)
+  const closedPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
+  const closedProfitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
+  const closedPercentClass = closedPercent > 0 ? 'inv-profit-pos' : closedPercent < 0 ? 'inv-profit-neg' : '';
 
-html += `<tr class="inv-total-row">
-  <td>ВСЕГО</td>
-  <td>—</td>
-  <td>${fmt(totalInvested)}</td>
-  <td>${fmt(totalValue)}</td>
-  <td class="${totalPercentClass}">${totalWeightedPercent >= 0 ? '+' : ''}${totalWeightedPercent.toFixed(2)}%</td>
-  <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
-  <td style="color:var(--accent);font-weight:600">${totalDivYield > 0 ? '+' + totalDivYield.toFixed(2) + '%' : '—'}</td>
-  <td class="${totalProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
-  <td>100%</td>
-</tr>`;
+  html += `<tr class="inv-total-row">
+    <td>ВСЕГО (${closed.length})</td>
+    <td>—</td>
+    <td>—</td>
+    <td>${fmt(totalInvested)}</td>
+    <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
+    <td>${fmt(totalProceeds)}</td>
+    <td class="${closedProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
+    <td class="${closedPercentClass}">${closedPercent >= 0 ? '+' : ''}${closedPercent.toFixed(2)}%</td>
+  </tr>`;
   
   html += '</tbody></table></div>';
   
