@@ -415,16 +415,11 @@ th.sortable.sorted-desc::after {
   overflow-x: auto;
 }
 
-/* Таблица инвестиционного портфеля */
-.inv-table-wrap {
-  overflow-x: auto;
-}
-
 .inv-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  min-width: 800px;
+  table-layout: fixed;
 }
 
 .inv-table th {
@@ -441,40 +436,12 @@ th.sortable.sorted-desc::after {
   position: sticky;
   top: 0;
   z-index: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inv-table th:first-child {
   text-align: left;
-  min-width: 220px;
-}
-
-.inv-table th:nth-child(2) {
-  text-align: right;
-  min-width: 80px;
-}
-
-.inv-table th:nth-child(3) {
-  min-width: 110px;
-}
-
-.inv-table th:nth-child(4) {
-  min-width: 110px;
-}
-
-.inv-table th:nth-child(5) {
-  min-width: 90px;
-}
-
-.inv-table th:nth-child(6) {
-  min-width: 100px;
-}
-
-.inv-table th:nth-child(7) {
-  min-width: 115px;
-}
-
-.inv-table th:nth-child(8) {
-  min-width: 80px;
 }
 
 .inv-table td {
@@ -489,7 +456,6 @@ th.sortable.sorted-desc::after {
 
 .inv-table td:first-child {
   text-align: left;
-  overflow: visible;
 }
 
 .inv-table tr:hover td {
@@ -5049,9 +5015,21 @@ async function renderInvestmentsPortfolio() {
   };
   
   let html = '<div class="inv-table-wrap"><table class="inv-table">';
-  
-  // Заголовки с сортировкой
-  html += `<thead><tr>
+
+// Colgroup — фиксированные ширины колонок
+html += `<colgroup>
+  <col style="width: 28%">
+  <col style="width: 8%">
+  <col style="width: 12%">
+  <col style="width: 12%">
+  <col style="width: 9%">
+  <col style="width: 10%">
+  <col style="width: 13%">
+  <col style="width: 8%">
+</colgroup>`;
+
+// Заголовки с сортировкой
+html += `<thead><tr>
     <th>Актив</th>
     <th class="inv-sortable" onclick="invSort('qty')">Кол-во</th>
     <th class="inv-sortable" onclick="invSort('invested')">Вложено</th>
