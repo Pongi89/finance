@@ -1738,16 +1738,22 @@ async function apiGet(params) {
     try {
       const data = JSON.parse(cached);
       if (Date.now() - data.timestamp < ttl) {
-        // ✅ Проверяем, что кэш не пустой
-        const hasData = (data.data?.data?.length > 0) || 
-                        (data.data?.positions?.length > 0) ||
-                        (data.data?.totals);
-        if (hasData) {
-          console.log(`📦 Кэш для ${params.action}`);
-          return data.data;
-        } else {
-          localStorage.removeItem(cacheKey);
-        }
+        // ✅ Проверяем, что кэш не пустой и имеет актуальную структуру
+const hasData = (data.data?.data?.length > 0) || 
+                (data.data?.positions?.length > 0) ||
+                (data.data?.totals);
+
+// ✅ Для calcPortfolio проверяем наличие closedPositions
+const needsClosedPositions = params.action === 'calcPortfolio';
+const hasClosedPositions = data.data?.closedPositions !== undefined;
+
+if (hasData && (!needsClosedPositions || hasClosedPositions)) {
+  console.log(`📦 Кэш для ${params.action}`);
+  return data.data;
+} else {
+  console.log(`⚠️ Кэш устарел (нужен closedPositions), удаляем`);
+  localStorage.removeItem(cacheKey);
+}
       }
     } catch(e) {
       localStorage.removeItem(cacheKey);
@@ -5220,6 +5226,10 @@ async function renderInvestmentsClosed() {
   if (!container) return;
   
   container.innerHTML = '<div class="loader">Загрузка...</div>';
+  
+  // ✅ Сбрасываем кэш — нужны свежие данные с closedPositions
+  localStorage.removeItem('cache_calcPortfolio');
+  S.invPortfolio = null;
   
   const portfolio = await loadPortfolio();
   let closed = portfolio.closedPositions || [];
