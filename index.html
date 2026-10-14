@@ -5025,14 +5025,15 @@ async function renderInvestmentsPortfolio() {
 
 // Colgroup — фиксированные ширины колонок
 html += `<colgroup>
-  <col style="width: 28%">
-  <col style="width: 8%">
-  <col style="width: 12%">
-  <col style="width: 12%">
-  <col style="width: 9%">
+  <col style="width: 22%">
+  <col style="width: 7%">
   <col style="width: 10%">
-  <col style="width: 13%">
+  <col style="width: 10%">
   <col style="width: 8%">
+  <col style="width: 11%">
+  <col style="width: 9%">
+  <col style="width: 12%">
+  <col style="width: 11%">
 </colgroup>`;
 
 // Заголовки с сортировкой
@@ -5042,7 +5043,8 @@ html += `<thead><tr>
     <th class="inv-sortable" onclick="invSort('invested')">Вложено</th>
     <th class="inv-sortable" onclick="invSort('value')">Текущая</th>
     <th class="inv-sortable" onclick="invSort('percent')">Доход %</th>
-    <th class="inv-sortable" onclick="invSort('payouts')">Выплаты</th>
+    <th class="inv-sortable" onclick="invSort('payouts')" title="Выплаты за последние 12 месяцев">Выплаты 12м</th>
+    <th class="inv-sortable" onclick="invSort('divyield')" title="Доходность к цене покупки: выплаты 12м / вложено × 100">Див. %</th>
     <th class="inv-sortable" onclick="invSort('profit')">Прибыль</th>
     <th>Доля</th>
   </tr></thead><tbody>`;
@@ -5065,27 +5067,32 @@ html += `<thead><tr>
     const sorted = [...group].sort((a, b) => {
       let va, vb;
       switch (sort.key) {
-        case 'qty': va = a.quantity || 0; vb = b.quantity || 0; break;
-        case 'invested': va = a.totalBuyCost || 0; vb = b.totalBuyCost || 0; break;
-        case 'value': va = a.currentValue || 0; vb = b.currentValue || 0; break;
-        case 'percent': va = a.profitPercent || 0; vb = b.profitPercent || 0; break;
-        case 'payouts': va = (a.totalCoupons || 0) + (a.totalAmortization || 0); vb = (b.totalCoupons || 0) + (b.totalAmortization || 0); break;
-        case 'profit': va = a.profit || 0; vb = b.profit || 0; break;
-        default: va = a.currentValue || 0; vb = b.currentValue || 0;
-      }
+  case 'qty': va = a.quantity || 0; vb = b.quantity || 0; break;
+  case 'invested': va = a.totalBuyCost || 0; vb = b.totalBuyCost || 0; break;
+  case 'value': va = a.currentValue || 0; vb = b.currentValue || 0; break;
+  case 'percent': va = a.profitPercent || 0; vb = b.profitPercent || 0; break;
+  case 'payouts': va = a.payouts12m || 0; vb = b.payouts12m || 0; break;
+  case 'divyield': 
+    va = a.totalBuyCost > 0 ? ((a.payouts12m || 0) / a.totalBuyCost * 100) : 0;
+    vb = b.totalBuyCost > 0 ? ((b.payouts12m || 0) / b.totalBuyCost * 100) : 0;
+    break;
+  case 'profit': va = a.profit || 0; vb = b.profit || 0; break;
+  default: va = a.currentValue || 0; vb = b.currentValue || 0;
+}
       return sort.asc ? va - vb : vb - va;
     });
     
     // Считаем суммы по разделу
     const sumInvested = group.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
     const sumValue = group.reduce((s, p) => s + (p.currentValue || 0), 0);
-    const sumPayouts = group.reduce((s, p) => s + (p.totalCoupons || 0) + (p.totalAmortization || 0), 0);
+    const sumPayouts = group.reduce((s, p) => s + (p.payouts12m || 0), 0);
     const sumProfit = group.reduce((s, p) => s + (p.profit || 0), 0);
     const sumShare = totalValue > 0 ? (sumValue / totalValue * 100) : 0;
     
     // ✅ Средневзвешенный доход % = сумма прибыли / сумма вложенного
     const weightedPercent = sumInvested > 0 ? (sumProfit / sumInvested * 100) : 0;
-    
+    // ✅ Средневзвешенная див. доходность
+    const weightedDivYield = sumInvested > 0 ? (sumPayouts / sumInvested * 100) : 0;
     const percentClass = weightedPercent > 0 ? 'inv-profit-pos' : weightedPercent < 0 ? 'inv-profit-neg' : '';
     const profitClass = sumProfit > 0 ? 'inv-profit-pos' : sumProfit < 0 ? 'inv-profit-neg' : '';
     const isCollapsed = invCollapsed[type];
@@ -5093,19 +5100,20 @@ html += `<thead><tr>
     
     // Строка-заголовок раздела
     html += `<tr class="inv-section-header" onclick="invToggleSection('${type}')">
-      <td style="text-align:left;cursor:pointer">
-        <span style="margin-right:6px;color:var(--text2)">${arrow}</span>
-        <span style="font-weight:600">${labels[type]}</span>
-        <span style="color:var(--text2);font-size:11px;margin-left:6px">(${group.length})</span>
-      </td>
-      <td>—</td>
-      <td>${fmt(sumInvested)}</td>
-      <td>${fmt(sumValue)}</td>
-      <td class="${percentClass}">${weightedPercent >= 0 ? '+' : ''}${weightedPercent.toFixed(2)}%</td>
-      <td>${sumPayouts > 0 ? fmt(sumPayouts) : '—'}</td>
-      <td class="${profitClass}">${sumProfit >= 0 ? '+' : ''}${fmt(sumProfit)}</td>
-      <td>${sumShare.toFixed(1)}%</td>
-    </tr>`;
+  <td style="text-align:left;cursor:pointer">
+    <span style="margin-right:6px;color:var(--text2)">${arrow}</span>
+    <span style="font-weight:600">${labels[type]}</span>
+    <span style="color:var(--text2);font-size:11px;margin-left:6px">(${group.length})</span>
+  </td>
+  <td>—</td>
+  <td>${fmt(sumInvested)}</td>
+  <td>${fmt(sumValue)}</td>
+  <td class="${percentClass}">${weightedPercent >= 0 ? '+' : ''}${weightedPercent.toFixed(2)}%</td>
+  <td>${sumPayouts > 0 ? fmt(sumPayouts) : '—'}</td>
+  <td>${weightedDivYield > 0 ? '+' + weightedDivYield.toFixed(2) + '%' : '—'}</td>
+  <td class="${profitClass}">${sumProfit >= 0 ? '+' : ''}${fmt(sumProfit)}</td>
+  <td>${sumShare.toFixed(1)}%</td>
+</tr>`;
     
     // Позиции раздела
     if (!isCollapsed) {
@@ -5181,8 +5189,12 @@ function renderInvRow(p, totalValue) {
   const percentClass = percent > 0 ? 'inv-profit-pos' : percent < 0 ? 'inv-profit-neg' : '';
   const percentSign = percent > 0 ? '+' : '';
   
-  const payouts = (p.totalCoupons || 0) + (p.totalAmortization || 0);
-  const payoutsStr = payouts > 0 ? fmt(payouts) : '—';
+  const payouts = p.payouts12m || 0;
+const payoutsStr = payouts > 0 ? fmt(payouts) : '—';
+
+// ✅ Див. доходность к вложенному
+const divYield = p.totalBuyCost > 0 ? (payouts / p.totalBuyCost * 100) : 0;
+const divYieldStr = divYield > 0 ? '+' + divYield.toFixed(2) + '%' : '—';
   
   const share = totalValue > 0 && p.currentValue !== null ? (p.currentValue / totalValue * 100) : 0;
   const shareStr = share.toFixed(1) + '%';
@@ -5211,8 +5223,9 @@ function renderInvRow(p, totalValue) {
     <td>${investedStr}</td>
     <td>${currentStr}</td>
     <td class="${percentClass}">${percentSign}${percent.toFixed(2)}%</td>
-    <td>${payoutsStr}</td>
-    <td class="${profitClass}">${profitSign}${fmt(profit)}</td>
+  <td>${payoutsStr}</td>
+  <td style="color:var(--accent);font-weight:600">${divYieldStr}</td>
+  <td class="${profitClass}">${profitSign}${fmt(profit)}</td>
     <td>
       <span class="inv-share-bar" style="width:${barWidth}px"></span>${shareStr}
     </td>
@@ -5356,16 +5369,20 @@ async function renderInvestmentsClosed() {
   });
   
   // Итоговая строка
-  html += `<tr class="inv-total-row">
-    <td>ВСЕГО (${closed.length})</td>
-    <td>—</td>
-    <td>—</td>
-    <td>${fmt(totalInvested)}</td>
-    <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
-    <td>${fmt(totalProceeds)}</td>
-    <td class="${profitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
-    <td class="${profitClass}">${totalPercent >= 0 ? '+' : ''}${totalPercent.toFixed(2)}%</td>
-  </tr>`;
+  const totalPayouts = positions.reduce((s, p) => s + (p.payouts12m || 0), 0);
+const totalDivYield = totalInvested > 0 ? (totalPayouts / totalInvested * 100) : 0;
+
+html += `<tr class="inv-total-row">
+  <td>ВСЕГО</td>
+  <td>—</td>
+  <td>${fmt(totalInvested)}</td>
+  <td>${fmt(totalValue)}</td>
+  <td class="${totalPercentClass}">${totalWeightedPercent >= 0 ? '+' : ''}${totalWeightedPercent.toFixed(2)}%</td>
+  <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
+  <td style="color:var(--accent);font-weight:600">${totalDivYield > 0 ? '+' + totalDivYield.toFixed(2) + '%' : '—'}</td>
+  <td class="${totalProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
+  <td>100%</td>
+</tr>`;
   
   html += '</tbody></table></div>';
   
