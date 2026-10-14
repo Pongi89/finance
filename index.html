@@ -550,6 +550,52 @@ th.sortable.sorted-desc::after {
 .inv-sortable:hover {
   color: var(--accent);
 }
+    .inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;   /* ← КЛЮЧЕВОЕ: фиксированная раскладка */
+}
+
+.inv-table th:nth-child(1),
+.inv-table td:nth-child(1) {
+  width: 30%;   /* Актив — самый широкий */
+}
+
+.inv-table th:nth-child(2),
+.inv-table td:nth-child(2) {
+  width: 8%;    /* Кол-во */
+}
+
+.inv-table th:nth-child(3),
+.inv-table td:nth-child(3) {
+  width: 12%;   /* Вложено */
+}
+
+.inv-table th:nth-child(4),
+.inv-table td:nth-child(4) {
+  width: 12%;   /* Текущая */
+}
+
+.inv-table th:nth-child(5),
+.inv-table td:nth-child(5) {
+  width: 9%;    /* Доход % */
+}
+
+.inv-table th:nth-child(6),
+.inv-table td:nth-child(6) {
+  width: 10%;   /* Выплаты */
+}
+
+.inv-table th:nth-child(7),
+.inv-table td:nth-child(7) {
+  width: 12%;   /* Прибыль */
+}
+
+.inv-table th:nth-child(8),
+.inv-table td:nth-child(8) {
+  width: 7%;    /* Доля */
+}
   </style>
 </head>
 <body>
