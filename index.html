@@ -5744,14 +5744,15 @@ const topEl = document.getElementById('inv-top-positions');
   }
   
   let html = '<div class="table-wrap"><table><thead><tr>' +
-    '<th>Тикер</th>' +
-    '<th>Кол-во</th>' +
-    '<th>Ср. цена</th>' +
-    '<th>Тек. цена</th>' +
-    '<th>Δ%</th>' +
-    '<th>Δ ₽</th>' +
-    '<th title="Сколько акций уже полностью окупились дивидендами">🎁 Бесплатных</th>' +
-    '</tr></thead><tbody>';
+  '<th>Тикер</th>' +
+  '<th>Кол-во</th>' +
+  '<th>Ср. цена</th>' +
+  '<th>Тек. цена</th>' +
+  '<th>Δ%</th>' +
+  '<th>Δ ₽</th>' +
+  '<th title="Всего получено за всё время: дивиденды (акции) и купоны (облигации). Амортизации не учитываются — это возврат номинала.">💰 Выплаты всего</th>' +
+  '<th title="Сколько акций уже полностью окупились дивидендами">🎁 Бесплатных</th>' +
+  '</tr></thead><tbody>';
   
   sorted.forEach(p => {
     const isCurrencyBond = p.asset_type === 'currency_bond';
@@ -5802,15 +5803,22 @@ const topEl = document.getElementById('inv-top-positions');
       }
     }
     
-    html += `<tr>
-      <td><strong>${p.ticker}</strong></td>
-      <td>${p.quantity}</td>
-      <td>${avgPriceStr}</td>
-      <td>${curPriceStr}</td>
-      <td class="${diffCls}" style="font-weight:600">${diffPctStr}</td>
-      <td class="${diffCls}" style="font-weight:600">${diffRubStr}</td>
-      <td class="${freeCls}" style="font-weight:600">${freeStr}</td>
-    </tr>`;
+// ✅ Всего выплат за всё время: только дивиденды (акции) и купоны (облигации)
+// Амортизации НЕ считаем — это возврат номинала, не доход
+const allPayouts = (p.totalDividends || 0) + (p.totalCoupons || 0);
+const allPayoutsStr = allPayouts > 0 ? fmt(allPayouts) : '—';
+const allPayoutsCls = allPayouts > 0 ? 'c-income' : '';
+
+html += `<tr>
+  <td><strong>${p.ticker}</strong></td>
+  <td>${p.quantity}</td>
+  <td>${avgPriceStr}</td>
+  <td>${curPriceStr}</td>
+  <td class="${diffCls}" style="font-weight:600">${diffPctStr}</td>
+  <td class="${diffCls}" style="font-weight:600">${diffRubStr}</td>
+  <td class="${allPayoutsCls}" style="font-weight:600">${allPayoutsStr}</td>
+  <td class="${freeCls}" style="font-weight:600">${freeStr}</td>
+</tr>`;
   });
   
   html += '</tbody></table></div>';
