@@ -4996,11 +4996,17 @@ async function loadPortfolio() {
   }
 }
 
-async function renderInvestmentsSummary() {
+async function renderInvestmentsSummary(positions) {
   const portfolio = await loadPortfolio();
   const totals = portfolio.totals || {};
   
-  document.getElementById('inv-total-cost').textContent = fmt(totals.totalBuyCost || 0);
+  // ✅ Вложено — без money_market (там оборот, а не вложения)
+  const positionsArr = positions || portfolio.positions || [];
+  const investedExcludingCash = positionsArr
+    .filter(p => p.asset_type !== 'money_market')
+    .reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+  
+  document.getElementById('inv-total-cost').textContent = fmt(investedExcludingCash);
   document.getElementById('inv-total-value').textContent = fmt(totals.totalValue || 0);
   
   // Нереализованный P&L
@@ -5044,11 +5050,13 @@ async function renderInvestmentsPortfolio() {
   if (!container) return;
   
   container.innerHTML = '<div class="loader">Загрузка...</div>';
-  await renderInvestmentsSummary();
+
+const portfolio = await loadPortfolio();
+const positions = portfolio.positions || [];
+
+await renderInvestmentsSummary(positions);
   
-  const portfolio = await loadPortfolio();
-  const positions = portfolio.positions || [];
-  
+ 
   if (!positions.length) {
     container.innerHTML = '<div class="empty">Пока нет позиций. Добавьте первую сделку во вкладке «Операция».</div>';
     return;
