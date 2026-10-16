@@ -290,6 +290,231 @@ th.sortable.sorted-desc::after {
   color: var(--accent);
 }
     /* ============================================================
+   TICKER MODAL
+   ============================================================ */
+.ticker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.ticker-overlay.show {
+  display: flex;
+}
+
+.ticker-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+
+.ticker-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 5;
+}
+
+.ticker-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ticker-modal-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.ticker-modal-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ticker-modal-symbol {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+.ticker-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text2);
+  font-size: 28px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  border-radius: 8px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.ticker-modal-close:hover {
+  color: var(--text);
+}
+
+/* Stats */
+.ticker-modal-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 20px 24px 8px;
+}
+
+.ticker-stat {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.ticker-stat-label {
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+
+.ticker-stat-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Chart */
+.ticker-modal-chart-block {
+  padding: 16px 24px;
+}
+
+.ticker-modal-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ticker-modal-periods {
+  display: flex;
+  gap: 4px;
+}
+
+.ticker-period-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.ticker-period-btn.active {
+  border-color: var(--accent);
+  background: rgba(108, 99, 255, 0.1);
+  color: var(--accent);
+}
+
+.ticker-period-btn:hover {
+  color: var(--text);
+}
+
+.ticker-modal-chart-wrap {
+  position: relative;
+  height: 320px;
+  width: 100%;
+}
+
+/* Tabs */
+.ticker-modal-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+
+.ticker-tab-btn {
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+
+.ticker-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.ticker-modal-tab-content {
+  padding: 16px 24px 24px;
+}
+
+.ticker-tab-panel {
+  display: none;
+}
+
+.ticker-tab-panel.active {
+  display: block;
+}
+
+/* Deals / Payments rows */
+.ticker-op-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.ticker-op-row:hover {
+  background: var(--surface);
+}
+
+@media (max-width: 600px) {
+  .ticker-modal-header { padding: 14px 16px; }
+  .ticker-modal-stats { padding: 14px 16px 8px; grid-template-columns: repeat(2, 1fr); }
+  .ticker-modal-chart-block { padding: 12px 16px; }
+  .ticker-modal-chart-wrap { height: 220px; }
+  .ticker-modal-tabs { padding: 0 16px; }
+  .ticker-modal-tab-content { padding: 12px 16px 18px; }
+}
+    /* ============================================================
    ИНВЕСТИЦИИ
    ============================================================ */
 .inv-tab-content {
@@ -1474,7 +1699,55 @@ th.sortable.sorted-desc::after {
     <iframe src="https://pay.cloudtips.ru/p/b543e04e" style="width:100%;height:520px;border:none;border-radius:12px" loading="lazy"></iframe>
   </div>
 </div>
+<!-- TICKER MODAL -->
+<div class="ticker-overlay" id="ticker-overlay" onclick="if(event.target===this)closeTickerModal()">
+  <div class="ticker-modal">
+    <!-- HEADER -->
+    <div class="ticker-modal-header">
+      <div class="ticker-modal-title">
+        <div class="ticker-modal-icon" id="ticker-modal-icon">📈</div>
+        <div>
+          <div class="ticker-modal-name" id="ticker-modal-name">—</div>
+          <div class="ticker-modal-symbol" id="ticker-modal-symbol">—</div>
+        </div>
+      </div>
+      <button class="ticker-modal-close" onclick="closeTickerModal()">×</button>
+    </div>
 
+    <!-- STATS -->
+    <div class="ticker-modal-stats" id="ticker-modal-stats"></div>
+
+    <!-- CHART -->
+    <div class="ticker-modal-chart-block">
+      <div class="ticker-modal-chart-header">
+        <div class="card-title" style="margin:0">История цены</div>
+        <div class="ticker-modal-periods" id="ticker-modal-periods">
+          <button class="ticker-period-btn" data-period="1m">1М</button>
+          <button class="ticker-period-btn" data-period="3m">3М</button>
+          <button class="ticker-period-btn" data-period="6m">6М</button>
+          <button class="ticker-period-btn active" data-period="1y">1Г</button>
+          <button class="ticker-period-btn" data-period="3y">3Г</button>
+          <button class="ticker-period-btn" data-period="all">Всё</button>
+        </div>
+      </div>
+      <div class="ticker-modal-chart-wrap">
+        <canvas id="ticker-modal-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="ticker-modal-tabs" id="ticker-modal-tabs">
+      <button class="ticker-tab-btn active" data-tab="deals">💼 Сделки</button>
+      <button class="ticker-tab-btn" data-tab="payments">💰 Начисления</button>
+    </div>
+
+    <!-- TAB CONTENT -->
+    <div class="ticker-modal-tab-content">
+      <div id="ticker-tab-deals" class="ticker-tab-panel active"></div>
+      <div id="ticker-tab-payments" class="ticker-tab-panel" style="display:none"></div>
+    </div>
+  </div>
+</div>
 <script>
   function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -5381,7 +5654,7 @@ function renderInvRow(p, totalValue, isAccount = false) {
   
   const rowClass = isAccount ? 'inv-position-row inv-account-row' : 'inv-position-row';
   
-  return `<tr class="${rowClass}">
+  return `<tr class="${rowClass}" onclick="event.stopPropagation();openTickerModal('${p.ticker}','${p.account || ''}')" style="cursor:pointer">
     <td>
       <div class="inv-asset-cell">
         <div class="inv-asset-icon">${icon}</div>
@@ -6198,7 +6471,480 @@ window.showPage = function(name) {
     }, 50);
   }
 };
+// ============================================================
+// КАРТОЧКА ЭМИТЕНТА (TICKER MODAL)
+// ============================================================
 
+let _tickerModalState = {
+  ticker: null,
+  account: null,
+  positions: [],   // все позиции по этому тикеру (все счета)
+  history: [],     // история цен
+  period: '1y',
+  chart: null,
+  activeTab: 'deals'
+};
+
+async function openTickerModal(ticker, account) {
+  if (!ticker) return;
+  
+  _tickerModalState.ticker = ticker;
+  _tickerModalState.account = account || null;
+  _tickerModalState.period = '1y';
+  _tickerModalState.activeTab = 'deals';
+  
+  // Показываем модальное окно сразу
+  document.getElementById('ticker-overlay').classList.add('show');
+  
+  // Находим все позиции по тикеру из кэша
+  const portfolio = await loadPortfolio();
+  const positions = (portfolio.positions || []).filter(p => p.ticker === ticker);
+  
+  if (!positions.length) {
+    closeTickerModal();
+    showToast('Позиция не найдена', 'error');
+    return;
+  }
+  
+  _tickerModalState.positions = positions;
+  
+  // Заголовок: имя, тикер
+  const firstPos = positions[0];
+  document.getElementById('ticker-modal-name').textContent = firstPos.name || ticker;
+  document.getElementById('ticker-modal-symbol').textContent = ticker + ' · ' + positions.length + ' счёт' + (positions.length > 1 ? 'а' : '');
+  
+  // Иконка
+  const iconMap = {
+    stock: '📈', bond: '📜', currency_bond: '💱',
+    fund: '🏦', etf: '📊', zpif: '🏢',
+    money_market: '💵', gold: '🥇', metal: '🥇',
+  };
+  document.getElementById('ticker-modal-icon').textContent = iconMap[firstPos.asset_type] || '📄';
+  
+  // Сводные метрики
+  renderTickerModalStats(positions);
+  
+  // Загружаем историю цен
+  await loadTickerHistory(firstPos.ticker, firstPos.asset_type);
+  
+  // Рисуем график
+  renderTickerChart();
+  
+  // Табы
+  renderTickerDeals();
+  renderTickerPayments();
+  
+  // Обработчики кнопок периодов
+  document.querySelectorAll('#ticker-modal-periods .ticker-period-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#ticker-modal-periods .ticker-period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _tickerModalState.period = btn.dataset.period;
+      renderTickerChart();
+    };
+  });
+  
+  // Обработчики табов
+  document.querySelectorAll('#ticker-modal-tabs .ticker-tab-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#ticker-modal-tabs .ticker-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _tickerModalState.activeTab = btn.dataset.tab;
+      
+      document.querySelectorAll('.ticker-tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('ticker-tab-' + btn.dataset.tab).classList.add('active');
+    };
+  });
+}
+
+function closeTickerModal() {
+  document.getElementById('ticker-overlay').classList.remove('show');
+  if (_tickerModalState.chart) {
+    _tickerModalState.chart.destroy();
+    _tickerModalState.chart = null;
+  }
+}
+
+function renderTickerModalStats(positions) {
+  const totalQty = positions.reduce((s, p) => s + (p.quantity || 0), 0);
+  const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
+  const totalCost = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+  const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
+  const totalDividends = positions.reduce((s, p) => s + (p.totalDividends || 0) + (p.totalCoupons || 0), 0);
+  const totalPayouts12m = positions.reduce((s, p) => s + (p.payouts12m || 0), 0);
+  
+  // Средневзвешенные метрики
+  const avgPrice = totalQty > 0 ? totalCost / totalQty : 0;
+  const profitPercent = totalCost > 0 ? (totalProfit / totalCost * 100) : 0;
+  const divYield = totalCost > 0 ? (totalPayouts12m / totalCost * 100) : 0;
+  
+  // XIRR по счёту или агрегат
+  let xirrVal = null;
+  if (_tickerModalState.account) {
+    const acc = positions.find(p => p.account === _tickerModalState.account);
+    if (acc && acc.xirr !== null && acc.xirr !== undefined) xirrVal = acc.xirr;
+  } else {
+    // Средневзвешенный XIRR по всем счетам
+    const withXirr = positions.filter(p => p.xirr !== null && p.xirr !== undefined);
+    if (withXirr.length > 0) {
+      const weightSum = withXirr.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+      if (weightSum > 0) {
+        xirrVal = withXirr.reduce((s, p) => s + (p.xirr * (p.totalBuyCost || 0)), 0) / weightSum;
+      }
+    }
+  }
+  
+  const profitClass = totalProfit > 0 ? 'c-income' : totalProfit < 0 ? 'c-expense' : 'c-text';
+  const percentClass = profitPercent > 0 ? 'c-income' : profitPercent < 0 ? 'c-expense' : 'c-text';
+  const xirrClass = xirrVal === null ? 'c-muted' : (xirrVal > 0 ? 'c-income' : xirrVal < 0 ? 'c-expense' : 'c-text');
+  
+  document.getElementById('ticker-modal-stats').innerHTML = `
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Кол-во</div>
+      <div class="ticker-stat-value c-text">${Number.isInteger(totalQty) ? totalQty : totalQty.toFixed(2)}</div>
+    </div>
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Текущая стоимость</div>
+      <div class="ticker-stat-value c-accent">${fmt(totalValue)}</div>
+    </div>
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Средняя цена</div>
+      <div class="ticker-stat-value c-text">${avgPrice > 0 ? avgPrice.toFixed(2) + ' ₽' : '—'}</div>
+    </div>
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Прибыль</div>
+      <div class="ticker-stat-value ${profitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</div>
+    </div>
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Доходность</div>
+      <div class="ticker-stat-value ${percentClass}">${percentClass !== 'c-text' ? (profitPercent >= 0 ? '+' : '') + profitPercent.toFixed(2) + '%' : '—'}</div>
+    </div>
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Годовая (XIRR)</div>
+      <div class="ticker-stat-value ${xirrClass}">${xirrVal !== null ? (xirrVal >= 0 ? '+' : '') + xirrVal.toFixed(2) + '%' : '—'}</div>
+    </div>
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Выплаты 12м</div>
+      <div class="ticker-stat-value c-income">${totalPayouts12m > 0 ? fmt(totalPayouts12m) : '—'}</div>
+    </div>
+    <div class="ticker-stat">
+      <div class="ticker-stat-label">Див. доходность</div>
+      <div class="ticker-stat-value c-accent">${divYield > 0 ? '+' + divYield.toFixed(2) + '%' : '—'}</div>
+    </div>
+  `;
+}
+
+async function loadTickerHistory(ticker, assetType) {
+  try {
+    const r = await apiGet({
+      action: 'getTickerHistory',
+      ticker: ticker,
+      asset_type: assetType,
+      from: '2019-01-01',
+      to: new Date().toISOString().substring(0, 10)
+    });
+    _tickerModalState.history = r.data || [];
+  } catch(e) {
+    console.warn('Ошибка загрузки истории:', e);
+    _tickerModalState.history = [];
+  }
+}
+
+function renderTickerChart() {
+  const canvas = document.getElementById('ticker-modal-chart');
+  if (!canvas) return;
+  
+  const history = _tickerModalState.history || [];
+  if (!history.length) {
+    if (_tickerModalState.chart) {
+      _tickerModalState.chart.destroy();
+      _tickerModalState.chart = null;
+    }
+    return;
+  }
+  
+  // Фильтруем по периоду
+  const today = new Date();
+  let cutoffDate = new Date(0);
+  
+  switch (_tickerModalState.period) {
+    case '1m': cutoffDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate()); break;
+    case '3m': cutoffDate = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()); break;
+    case '6m': cutoffDate = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate()); break;
+    case '1y': cutoffDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()); break;
+    case '3y': cutoffDate = new Date(today.getFullYear() - 3, today.getMonth(), today.getDate()); break;
+    case 'all': cutoffDate = new Date(0); break;
+  }
+  
+  const cutoffStr = cutoffDate.toISOString().substring(0, 10);
+  const filtered = history.filter(h => h.date >= cutoffStr);
+  
+  if (!filtered.length) {
+    if (_tickerModalState.chart) {
+      _tickerModalState.chart.destroy();
+      _tickerModalState.chart = null;
+    }
+    return;
+  }
+  
+  // Собираем точки покупок/продаж
+  const positions = _tickerModalState.positions || [];
+  const firstPos = positions[0];
+  
+  // Средняя цена
+  const totalQty = positions.reduce((s, p) => s + p.quantity, 0);
+  const totalCost = positions.reduce((s, p) => s + p.totalCost, 0);
+  const avgPrice = totalQty > 0 ? totalCost / totalQty : 0;
+  
+  // Данные из ISS — цены в % от номинала для облигаций
+  // Пересчитываем в рубли
+  const isBond = ['bond', 'currency_bond'].includes(firstPos.asset_type);
+  const faceValue = firstPos.face_value || 1000;
+  
+  const labels = filtered.map(h => h.date);
+  const prices = filtered.map(h => {
+    if (isBond) {
+      // Цена в % от номинала → в рубли
+      return h.price / 100 * faceValue;
+    }
+    return h.price;
+  });
+  
+  // Точки покупок/продаж
+  // Берём из getInvestments
+  const inv = S.invOperations || [];
+  const tickerOps = inv.filter(o => o.ticker === _tickerModalState.ticker);
+  
+  // Находим ближайшую дату в истории для каждой сделки
+  const dealPoints = [];
+  tickerOps.forEach(op => {
+    if (!op.date) return;
+    // Ищем точку, ближайшую к дате сделки
+    let closest = null;
+    let minDiff = Infinity;
+    const opDate = new Date(op.date).getTime();
+    
+    for (let i = 0; i < filtered.length; i++) {
+      const diff = Math.abs(new Date(filtered[i].date).getTime() - opDate);
+      if (diff < minDiff) { minDiff = diff; closest = filtered[i]; }
+      if (filtered[i].date > op.date) break;
+    }
+    
+    if (closest) {
+      const idx = filtered.indexOf(closest);
+      if (idx >= 0) {
+        const priceRub = isBond ? (closest.price / 100 * faceValue) : closest.price;
+        dealPoints.push({
+          x: labels[idx],
+          y: priceRub,
+          type: op.type,
+          qty: op.quantity,
+          amount: op.amount,
+          date: op.date,
+          comment: op.comment || ''
+        });
+      }
+    }
+  });
+  
+  // Разрушаем старый
+  if (_tickerModalState.chart) _tickerModalState.chart.destroy();
+  
+  // Датамсеты
+  const datasets = [
+    {
+      label: 'Цена',
+      data: prices,
+      borderColor: '#6c63ff',
+      backgroundColor: 'rgba(108, 99, 255, 0.05)',
+      fill: true,
+      tension: 0.2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      borderWidth: 2,
+    }
+  ];
+  
+  // Средняя цена (пунктир)
+  if (avgPrice > 0) {
+    datasets.push({
+      label: 'Средняя в портфеле',
+      data: labels.map(() => avgPrice),
+      borderColor: '#f6ad55',
+      borderDash: [6, 4],
+      fill: false,
+      pointRadius: 0,
+      borderWidth: 1.5,
+    });
+  }
+  
+  // Точки покупок/продаж
+  const buyPoints = dealPoints.filter(p => p.type === 'buy');
+  const sellPoints = dealPoints.filter(p => p.type === 'sell');
+  
+  if (buyPoints.length) {
+    datasets.push({
+      label: 'Покупки',
+      data: labels.map(l => {
+        const pt = buyPoints.find(p => p.x === l);
+        return pt ? pt.y : null;
+      }),
+      borderColor: '#48bb78',
+      backgroundColor: '#48bb78',
+      pointRadius: 6,
+      pointHoverRadius: 9,
+      pointStyle: 'circle',
+      showLine: false,
+    });
+  }
+  
+  if (sellPoints.length) {
+    datasets.push({
+      label: 'Продажи',
+      data: labels.map(l => {
+        const pt = sellPoints.find(p => p.x === l);
+        return pt ? pt.y : null;
+      }),
+      borderColor: '#fc8181',
+      backgroundColor: '#fc8181',
+      pointRadius: 6,
+      pointHoverRadius: 9,
+      pointStyle: 'circle',
+      showLine: false,
+    });
+  }
+  
+  const ctx = canvas.getContext('2d');
+  _tickerModalState.chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#8892a4', font: { size: 11 }, boxWidth: 12 }
+        },
+        tooltip: {
+          callbacks: {
+            label: (c) => {
+              if (c.dataset.label === 'Покупки' || c.dataset.label === 'Продажи') {
+                const pt = c.dataset.label === 'Покупки' 
+                  ? buyPoints.find(p => p.x === c.label)
+                  : sellPoints.find(p => p.x === c.label);
+                if (pt) return `${c.dataset.label}: ${pt.qty} шт × ${pt.y.toFixed(2)} ₽`;
+              }
+              return `${c.dataset.label}: ${c.parsed.y.toFixed(2)} ₽`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 },
+          grid: { color: 'rgba(46, 49, 72, 0.3)' }
+        },
+        y: {
+          ticks: { color: '#8892a4', font: { size: 10 }, callback: v => v.toFixed(0) + ' ₽' },
+          grid: { color: 'rgba(46, 49, 72, 0.3)' }
+        }
+      }
+    }
+  });
+}
+
+function renderTickerDeals() {
+  const container = document.getElementById('ticker-tab-deals');
+  if (!container) return;
+  
+  const ticker = _tickerModalState.ticker;
+  const inv = S.invOperations || [];
+  const tickerOps = inv
+    .filter(o => o.ticker === ticker && (o.type === 'buy' || o.type === 'sell'))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  
+  if (!tickerOps.length) {
+    container.innerHTML = '<div class="empty">Нет сделок по этой бумаге</div>';
+    return;
+  }
+  
+  let html = '';
+  tickerOps.forEach(op => {
+    const typeLabel = op.type === 'buy' ? 'Покупка' : 'Продажа';
+    html += `
+      <div class="ticker-op-row">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <span class="inv-op-type ${op.type}">${typeLabel}</span>
+          <div style="min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${formatDate(op.date)} · ${op.account}</div>
+            <div style="font-size:11px;color:var(--text2)">${op.quantity} шт. × ${op.price} ₽${op.fee ? ' · комиссия ' + fmt(op.fee) : ''}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700;color:${op.type === 'buy' ? 'var(--expense)' : 'var(--income)'}">
+            ${op.type === 'buy' ? '−' : '+'}${fmt(op.amount)}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+function renderTickerPayments() {
+  const container = document.getElementById('ticker-tab-payments');
+  if (!container) return;
+  
+  const ticker = _tickerModalState.ticker;
+  const inv = S.invOperations || [];
+  const tickerOps = inv
+    .filter(o => o.ticker === ticker && ['dividend', 'coupon', 'staking', 'tax'].includes(o.type))
+    .sort((a, b) => b.date.localeCompare(a.date));
+  
+  if (!tickerOps.length) {
+    container.innerHTML = '<div class="empty">Нет начислений по этой бумаге</div>';
+    return;
+  }
+  
+  const typeLabels = { dividend: 'Дивиденды', coupon: 'Купоны', staking: 'Стейкинг', tax: 'Налог' };
+  
+  let html = '';
+  let totalSum = 0;
+  
+  tickerOps.forEach(op => {
+    const netAmount = op.amount - (op.tax || 0);
+    totalSum += netAmount;
+    
+    const isNegative = netAmount < 0;
+    const sign = isNegative ? '' : '+';
+    const color = isNegative ? 'var(--expense)' : 'var(--income)';
+    
+    html += `
+      <div class="ticker-op-row">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+          <span class="inv-op-type ${op.type}">${typeLabels[op.type] || op.type}</span>
+          <div style="min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${formatDate(op.date)} · ${op.account}</div>
+            ${op.comment ? `<div style="font-size:11px;color:var(--text2)">${op.comment}</div>` : ''}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700;color:${color}">${sign}${fmt(netAmount)}</div>
+          ${op.tax ? `<div style="font-size:10px;color:var(--text2)">налог ${fmt(op.tax)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `<div style="margin-top:12px;padding-top:12px;border-top:2px solid var(--accent);display:flex;justify-content:space-between;font-weight:700">
+    <span>ИТОГО (на руки)</span>
+    <span style="color:var(--income)">${fmt(totalSum)}</span>
+  </div>`;
+  
+  container.innerHTML = html;
+}
 console.log('✅ Инвестиции: frontend загружен');  
 </script>
 </body>
