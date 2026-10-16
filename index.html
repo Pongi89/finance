@@ -7027,6 +7027,75 @@ function renderTickerPayments() {
   container.innerHTML = html;
 }
 console.log('✅ Инвестиции: frontend загружен');  
+ 
+ // ============================================================
+// XIRR (годовая доходность) — для бенчмарка
+// ============================================================
+function calcXIRR(cashflows) {
+  if (!cashflows || cashflows.length < 2) return null;
+  
+  const hasPositive = cashflows.some(cf => cf.amount > 0);
+  const hasNegative = cashflows.some(cf => cf.amount < 0);
+  if (!hasPositive || !hasNegative) return null;
+  
+  const sorted = [...cashflows].sort((a, b) => a.date.localeCompare(b.date));
+  const d0 = new Date(sorted[0].date).getTime();
+  const dLast = new Date(sorted[sorted.length - 1].date).getTime();
+  if (dLast === d0) return null;
+  
+  function npv(rate) {
+    let sum = 0;
+    for (const cf of sorted) {
+      const days = (new Date(cf.date).getTime() - d0) / (1000 * 60 * 60 * 24);
+      sum += cf.amount / Math.pow(1 + rate, days / 365);
+    }
+    return sum;
+  }
+  
+  function npvDerivative(rate) {
+    let sum = 0;
+    for (const cf of sorted) {
+      const days = (new Date(cf.date).getTime() - d0) / (1000 * 60 * 60 * 24);
+      sum += -(days / 365) * cf.amount / Math.pow(1 + rate, days / 365 + 1);
+    }
+    return sum;
+  }
+  
+  let rate = 0.1;
+  let converged = false;
+  
+  for (let i = 0; i < 100; i++) {
+    const f = npv(rate);
+    if (Math.abs(f) < 0.001) { converged = true; break; }
+    const df = npvDerivative(rate);
+    if (Math.abs(df) < 1e-10) break;
+    let newRate = rate - f / df;
+    if (newRate < -0.99) newRate = -0.99;
+    if (newRate > 100) newRate = 100;
+    if (Math.abs(newRate - rate) > 1) {
+      newRate = rate + (newRate - rate) * 0.5;
+    }
+    rate = newRate;
+  }
+  
+  if (!converged) {
+    let lo = -0.99, hi = 100;
+    let fLo = npv(lo), fHi = npv(hi);
+    if (fLo * fHi > 0) return null;
+    for (let i = 0; i < 200; i++) {
+      const mid = (lo + hi) / 2;
+      const fMid = npv(mid);
+      if (Math.abs(fMid) < 0.001) { rate = mid; converged = true; break; }
+      if (fLo * fMid < 0) { hi = mid; fHi = fMid; }
+      else { lo = mid; fLo = fMid; }
+    }
+  }
+  
+  if (!converged) return null;
+  const result = rate * 100;
+  if (result < -99 || result > 1000) return null;
+  return Math.round(result * 100) / 100;
+} 
   // ============================================================
 // СРАВНЕНИЕ С ИНДЕКСОМ
 // ============================================================
