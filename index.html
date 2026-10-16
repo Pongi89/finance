@@ -3916,7 +3916,7 @@ function showCategoryYearChart(categoryName, type = 'expense') {
 
   const labels = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvasNow.getContext('2d');
   if (window._categoryChartInstance) window._categoryChartInstance.destroy();
 
   const hasPrevData = prevData.some(v => v > 0);
@@ -6237,8 +6237,10 @@ async function submitInvestment() {
       ['inv-input-ticker','inv-input-name','inv-input-quantity','inv-input-price','inv-input-amount','inv-input-fee','inv-input-tax','inv-input-comment'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
       document.getElementById('inv-calc-hint').textContent = '';
       
-      S.invOperations = null;
+           S.invOperations = null;
       S.invPortfolio = null;
+      localStorage.removeItem('cache_getInvestments');
+      localStorage.removeItem('cache_calcPortfolio');
       
       setInvestmentsTab('portfolio', document.querySelector('#investments-tabs .period-btn'));
     } else {
@@ -6362,8 +6364,10 @@ async function saveEditInvestment() {
       closeEditInvestment();
       
       // Сбрасываем кэш
-      S.invOperations = null;
+       S.invOperations = null;
       S.invPortfolio = null;
+      localStorage.removeItem('cache_getInvestments');
+      localStorage.removeItem('cache_calcPortfolio');
       
       // Обновляем текущую подвкладку
       setInvestmentsTab(S.invTab, null);
@@ -6388,6 +6392,8 @@ async function deleteEditInvestment() {
       // Сбрасываем кэш
       S.invOperations = null;
       S.invPortfolio = null;
+      localStorage.removeItem('cache_getInvestments');
+      localStorage.removeItem('cache_calcPortfolio');
       
       setInvestmentsTab(S.invTab, null);
     } else {
@@ -6496,14 +6502,28 @@ async function openTickerModal(ticker, account) {
   // Показываем модальное окно сразу
   document.getElementById('ticker-overlay').classList.add('show');
   
-  // Находим все позиции по тикеру из кэша
-  const portfolio = await loadPortfolio();
+  // ✅ ФИКС: Загружаем сырые операции, если их нет.
+  // Без этого renderTickerDeals() и renderTickerPayments() всегда пусты.
+  if (!S.invOperations || !S.invOperations.length) {
+    try {
+      await loadInvestments(true);
+    } catch(e) {
+      console.warn('Не удалось загрузить операции:', e);
+    }
+  }
+  
+    // Находим все позиции по тикеру из кэша
+  let portfolio = { positions: [], totals: {} };
+  try {
+    portfolio = await loadPortfolio() || { positions: [], totals: {} };
+  } catch(e) {
+    console.warn('loadPortfolio упал, продолжаем с пустым:', e);
+  }
   const positions = (portfolio.positions || []).filter(p => p.ticker === ticker);
   
   if (!positions.length) {
-    closeTickerModal();
-    showToast('Позиция не найдена', 'error');
-    return;
+    // Не закрываем модалку — показываем её с пустым портфелем, но сделки всё равно попробуем отрисовать
+    console.warn('Позиции по', ticker, 'не найдены в портфеле');
   }
   
   _tickerModalState.positions = positions;
@@ -6651,7 +6671,15 @@ async function loadTickerHistory(ticker, assetType) {
 }
 
 function renderTickerChart() {
-  const canvas = document.getElementById('ticker-modal-chart');
+  const wrap = document.querySelector('.ticker-modal-chart-wrap');
+  if (!wrap) return;
+  
+  // Если canvas уничтожен — восстанавливаем
+  let canvas = document.getElementById('ticker-modal-chart');
+  if (!canvas) {
+    wrap.innerHTML = '<canvas id="ticker-modal-chart"></canvas>';
+    canvas = document.getElementById('ticker-modal-chart');
+  }
   if (!canvas) return;
   
   const history = _tickerModalState.history || [];
@@ -6660,8 +6688,34 @@ function renderTickerChart() {
       _tickerModalState.chart.destroy();
       _tickerModalState.chart = null;
     }
+    wrap.innerHTML = '<div class="empty" style="height:100%;display:flex;align-items:center;justify-content:center">Нет данных по истории цены</div>';
     return;
   }
+  
+  // ... дальше всё как было, но используем canvas (не canvasNow)
+  
+  const history = _tickerModalState.history || [];
+  if (!history.length) {
+    if (_tickerModalState.chart) {
+      _tickerModalState.chart.destroy();
+      _tickerModalState.chart = null;
+    }
+    // ✅ ФИКС: показываем сообщение вместо пустого канваса
+    const wrap = canvas.parentElement;
+    if (wrap) {
+      wrap.innerHTML = '<div class="empty" style="height:100%;display:flex;align-items:center;justify-content:center">Нет данных по истории цены.<br>Проверьте, что тикер и тип актива верны.</div>';
+    }
+    return;
+  }
+  
+  // ✅ Если ранее вставляли заглушку — восстанавливаем canvas
+  if (!document.getElementById('ticker-modal-chart')) {
+    const wrap = canvas.parentElement;
+    if (wrap) wrap.innerHTML = '<canvas id="ticker-modal-chart"></canvas>';
+  }
+  
+  const canvasNow = document.getElementById('ticker-modal-chart');
+  if (!canvasNow) return;
   
   // Фильтруем по периоду
   const today = new Date();
@@ -6814,7 +6868,7 @@ function renderTickerChart() {
     });
   }
   
-  const ctx = canvas.getContext('2d');
+  const ctx = canvasNow.getContext('2d');
   _tickerModalState.chart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
@@ -6858,10 +6912,11 @@ function renderTickerDeals() {
   const container = document.getElementById('ticker-tab-deals');
   if (!container) return;
   
-  const ticker = _tickerModalState.ticker;
+  const ticker = String(_tickerModalState.ticker || '').replace(/@$/, '').toUpperCase();
   const inv = S.invOperations || [];
   const tickerOps = inv
-    .filter(o => o.ticker === ticker && (o.type === 'buy' || o.type === 'sell'))
+    .filter(o => String(o.ticker || '').replace(/@$/, '').toUpperCase() === ticker 
+              && (o.type === 'buy' || o.type === 'sell'))
     .sort((a, b) => b.date.localeCompare(a.date));
   
   if (!tickerOps.length) {
@@ -6897,10 +6952,11 @@ function renderTickerPayments() {
   const container = document.getElementById('ticker-tab-payments');
   if (!container) return;
   
-  const ticker = _tickerModalState.ticker;
+  const ticker = String(_tickerModalState.ticker || '').replace(/@$/, '').toUpperCase();
   const inv = S.invOperations || [];
   const tickerOps = inv
-    .filter(o => o.ticker === ticker && ['dividend', 'coupon', 'staking', 'tax'].includes(o.type))
+    .filter(o => String(o.ticker || '').replace(/@$/, '').toUpperCase() === ticker 
+              && ['dividend', 'coupon', 'staking', 'tax'].includes(o.type))
     .sort((a, b) => b.date.localeCompare(a.date));
   
   if (!tickerOps.length) {
