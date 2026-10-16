@@ -1073,13 +1073,14 @@ th.sortable.sorted-desc::after {
 
   <!-- Подвкладки -->
   <div class="period-row period-row-sticky" id="investments-tabs">
-    <button class="period-btn active" onclick="setInvestmentsTab('portfolio', this)">📊 Портфель</button>
-    <button class="period-btn" onclick="setInvestmentsTab('closed', this)">✅ Закрытые</button>
-    <button class="period-btn" onclick="setInvestmentsTab('deals', this)">💼 Сделки</button>
-    <button class="period-btn" onclick="setInvestmentsTab('payments', this)">💰 Выплаты</button>
-    <button class="period-btn" onclick="setInvestmentsTab('analytics', this)">📈 Аналитика</button>
-    <button class="period-btn" onclick="setInvestmentsTab('add', this)">➕ Операция</button>
-  </div>
+  <button class="period-btn active" onclick="setInvestmentsTab('portfolio', this)">📊 Портфель</button>
+  <button class="period-btn" onclick="setInvestmentsTab('closed', this)">✅ Закрытые</button>
+  <button class="period-btn" onclick="setInvestmentsTab('deals', this)">💼 Сделки</button>
+  <button class="period-btn" onclick="setInvestmentsTab('payments', this)">💰 Выплаты</button>
+  <button class="period-btn" onclick="setInvestmentsTab('analytics', this)">📈 Аналитика</button>
+  <button class="period-btn" onclick="setInvestmentsTab('benchmark', this)">🎯 vs Индекс</button>
+  <button class="period-btn" onclick="setInvestmentsTab('add', this)">➕ Операция</button>
+</div>
 
   <!-- Сводка (видна на всех подвкладках) -->
 <div class="stats-row" id="inv-summary" style="margin-bottom:16px;">
@@ -1195,7 +1196,49 @@ th.sortable.sorted-desc::after {
   <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
 </div>
   </div>
-
+<!-- ============ ПОДВКЛАДКА: СРАВНЕНИЕ С ИНДЕКСОМ ============ -->
+<div id="inv-tab-benchmark" class="inv-tab-content" style="display:none">
+  
+  <!-- Период -->
+  <div class="period-row">
+    <button class="period-btn" onclick="setBenchmarkPeriod('1y',this)">1 год</button>
+    <button class="period-btn active" onclick="setBenchmarkPeriod('3y',this)">3 года</button>
+    <button class="period-btn" onclick="setBenchmarkPeriod('5y',this)">5 лет</button>
+    <button class="period-btn" onclick="setBenchmarkPeriod('all',this)">Всё время</button>
+  </div>
+  
+  <!-- Выбор индекса -->
+  <div class="period-row">
+    <span style="font-size:12px;color:var(--text2);margin-right:8px;line-height:32px">Индекс:</span>
+    <button class="period-btn active" onclick="setBenchmarkIndex('MCFTR',this)">MCFTR (полная доходность)</button>
+    <button class="period-btn" onclick="setBenchmarkIndex('IMOEX',this)">IMOEX (цена)</button>
+  </div>
+  
+  <!-- Сводные метрики -->
+  <div class="stats-row" id="benchmark-stats"></div>
+  
+  <!-- График -->
+  <div class="card">
+    <div class="card-title">Динамика портфеля vs индекса</div>
+    <div class="chart-wrap-tall"><canvas id="chart-benchmark"></canvas></div>
+  </div>
+  
+  <!-- Таблица по годам -->
+  <div class="card">
+    <div class="card-title">По годам</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Год</th>
+          <th>Портфель</th>
+          <th>Индекс</th>
+          <th>Разница</th>
+        </tr></thead>
+        <tbody id="benchmark-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
   <!-- ============ ПОДВКЛАДКА: + ОПЕРАЦИЯ ============ -->
   <div id="inv-tab-add" class="inv-tab-content" style="display:none">
     <div class="card">
@@ -5236,6 +5279,7 @@ function setInvestmentsTab(tab, btn) {
   if (tab === 'deals') renderInvestmentsDeals();
   if (tab === 'payments') renderInvestmentsPayments();
   if (tab === 'analytics') renderInvestmentsAnalytics();
+  if (tab === 'benchmark') renderBenchmark();
   if (tab === 'add') initInvestmentsAddForm();
 }
 async function refreshInvestments() {
@@ -6468,6 +6512,7 @@ window.showPage = function(name) {
             (S.invTab === 'deals' && text.includes('сделки')) ||
             (S.invTab === 'payments' && text.includes('выплаты')) ||
             (S.invTab === 'analytics' && text.includes('аналитика')) ||
+            (S.invTab === 'benchmark' && text.includes('индекс')) ||
             (S.invTab === 'add' && text.includes('операция'))) {
           b.classList.add('active');
         } else {
@@ -6982,6 +7027,391 @@ function renderTickerPayments() {
   container.innerHTML = html;
 }
 console.log('✅ Инвестиции: frontend загружен');  
+  // ============================================================
+// СРАВНЕНИЕ С ИНДЕКСОМ
+// ============================================================
+
+S.benchmarkPeriod = '3y';
+S.benchmarkIndex = 'MCFTR';
+S.benchmarkChart = null;
+
+function setBenchmarkPeriod(period, btn) {
+  S.benchmarkPeriod = period;
+  document.querySelectorAll('#inv-tab-benchmark .period-row:first-child .period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderBenchmark();
+}
+
+function setBenchmarkIndex(indexCode, btn) {
+  S.benchmarkIndex = indexCode;
+  document.querySelectorAll('#inv-tab-benchmark .period-row:nth-child(2) .period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderBenchmark();
+}
+
+async function renderBenchmark() {
+  const statsEl = document.getElementById('benchmark-stats');
+  if (!statsEl) return;
+  
+  statsEl.innerHTML = '<div class="loader">Загрузка...</div>';
+  
+  // 1. Получаем историю портфеля (виртуальный портфель: сколько стоил бы портфель, вложенный в те же даты)
+  const portfolioHistory = await calcPortfolioHistory();
+  
+  // 2. Получаем историю индекса
+  const indexHistory = await loadIndexHistory(S.benchmarkIndex);
+  
+  if (!portfolioHistory.length || !indexHistory.length) {
+    statsEl.innerHTML = '<div class="empty">Нет данных для сравнения</div>';
+    return;
+  }
+  
+  // 3. Фильтруем по периоду
+  const cutoff = getBenchmarkCutoff();
+  const filteredPortfolio = portfolioHistory.filter(p => p.date >= cutoff);
+  const filteredIndex = indexHistory.filter(p => p.date >= cutoff);
+  
+  if (!filteredPortfolio.length || !filteredIndex.length) {
+    statsEl.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
+    return;
+  }
+  
+  // 4. Нормализуем оба ряда к 100 на старте
+  const portfolioStart = filteredPortfolio[0].value;
+  const indexStart = filteredIndex[0].price;
+  
+  const portfolioNorm = filteredPortfolio.map(p => ({
+    date: p.date,
+    value: portfolioStart > 0 ? (p.value / portfolioStart) * 100 : 0
+  }));
+  
+  const indexNorm = filteredIndex.map(p => ({
+    date: p.date,
+    value: (p.price / indexStart) * 100
+  }));
+  
+  // 5. Считаем итоги
+  const portfolioEnd = portfolioNorm[portfolioNorm.length - 1].value;
+  const indexEnd = indexNorm[indexNorm.length - 1].value;
+  
+  const portfolioReturn = portfolioEnd - 100;
+  const indexReturn = indexEnd - 100;
+  const diff = portfolioReturn - indexReturn;
+  
+  // 6. Считаем XIRR для обоих за период
+  const portfolioXirr = calcBenchmarkXirr(filteredPortfolio, 'portfolio');
+  const indexXirr = calcBenchmarkXirr(filteredIndex, 'index');
+  
+  // 7. Рисуем статистику
+  const sign = diff >= 0 ? '+' : '';
+  const diffColor = diff >= 0 ? 'c-income' : 'c-expense';
+  const diffWord = diff >= 0 ? 'обогнал' : 'отстал';
+  
+  statsEl.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Портфель (${S.benchmarkPeriod === 'all' ? 'всё время' : S.benchmarkPeriod})</div>
+      <div class="stat-value ${portfolioReturn >= 0 ? 'c-income' : 'c-expense'}">${portfolioReturn >= 0 ? '+' : ''}${portfolioReturn.toFixed(2)}%</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">XIRR: ${portfolioXirr !== null ? (portfolioXirr >= 0 ? '+' : '') + portfolioXirr.toFixed(2) + '%' : '—'}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">${S.benchmarkIndex}</div>
+      <div class="stat-value ${indexReturn >= 0 ? 'c-income' : 'c-expense'}">${indexReturn >= 0 ? '+' : ''}${indexReturn.toFixed(2)}%</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">XIRR: ${indexXirr !== null ? (indexXirr >= 0 ? '+' : '') + indexXirr.toFixed(2) + '%' : '—'}</div>
+    </div>
+    <div class="stat-card" style="background:${diff >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diff >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
+      <div class="stat-label">Портфель ${diffWord} индекс</div>
+      <div class="stat-value ${diffColor}">${sign}${diff.toFixed(2)}%</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">за период</div>
+    </div>
+  `;
+  
+  // 8. Рисуем график
+  renderBenchmarkChart(portfolioNorm, indexNorm, S.benchmarkIndex);
+  
+  // 9. Таблица по годам
+  renderBenchmarkTable(portfolioHistory, indexHistory, S.benchmarkIndex);
+}
+
+function getBenchmarkCutoff() {
+  const now = new Date();
+  let years = 3;
+  if (S.benchmarkPeriod === '1y') years = 1;
+  else if (S.benchmarkPeriod === '3y') years = 3;
+  else if (S.benchmarkPeriod === '5y') years = 5;
+  else return '2000-01-01';  // all
+  
+  const d = new Date(now.getFullYear() - years, now.getMonth(), now.getDate());
+  return d.toISOString().substring(0, 10);
+}
+
+// Считаем виртуальную "стоимость портфеля" за каждый день —
+// сколько стоил бы текущий портфель на каждую дату
+async function calcPortfolioHistory() {
+  const portfolio = await loadPortfolio();
+  const positions = portfolio.positions || [];
+  if (!positions.length) return [];
+  
+  // Границы: от самой ранней покупки до сегодня
+  const allDates = [];
+  for (const p of positions) {
+    const r = await apiGet({
+      action: 'getTickerHistory',
+      ticker: p.ticker,
+      asset_type: p.asset_type,
+      from: '2019-01-01',
+      to: new Date().toISOString().substring(0, 10)
+    });
+    if (r.data && r.data.length) {
+      allDates.push(...r.data.map(d => d.date));
+    }
+  }
+  
+  if (!allDates.length) return [];
+  
+  allDates.sort();
+  const startDate = allDates[0];
+  const endDate = new Date().toISOString().substring(0, 10);
+  
+  // Собираем историю всех бумаг
+  const histories = {};
+  for (const p of positions) {
+    const r = await apiGet({
+      action: 'getTickerHistory',
+      ticker: p.ticker,
+      asset_type: p.asset_type,
+      from: startDate,
+      to: endDate
+    });
+    histories[p.ticker] = r.data || [];
+  }
+  
+  // Строим временной ряд: для каждой даты — сумма (qty × price)
+  // qty берём текущий, чтобы упростить — это "виртуальный портфель"
+  // (можно улучшить: учитывать все покупки/продажи, но это усложнит логику)
+  
+  // Собираем все уникальные даты
+  const allDateSet = new Set();
+  Object.values(histories).forEach(arr => arr.forEach(h => allDateSet.add(h.date)));
+  const dates = [...allDateSet].sort();
+  
+  const result = [];
+  for (const date of dates) {
+    let totalValue = 0;
+    for (const p of positions) {
+      const hist = histories[p.ticker] || [];
+      // Находим последнюю цену <= date
+      let price = null;
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i].date <= date) { price = hist[i].price; break; }
+      }
+      if (price !== null) {
+        // Для облигаций цена в % от номинала
+        const isBond = ['bond', 'currency_bond'].includes(p.asset_type);
+        const priceRub = isBond ? (price / 100 * (p.face_value || 1000)) : price;
+        totalValue += p.quantity * priceRub;
+      }
+    }
+    if (totalValue > 0) {
+      result.push({ date, value: totalValue });
+    }
+  }
+  
+  return result;
+}
+
+async function loadIndexHistory(indexCode) {
+  try {
+    const r = await apiGet({
+      action: 'getIndexHistory',
+      index: indexCode,
+      from: '2019-01-01',
+      to: new Date().toISOString().substring(0, 10)
+    });
+    return r.data || [];
+  } catch(e) {
+    console.error('Ошибка загрузки индекса:', e);
+    return [];
+  }
+}
+
+function calcBenchmarkXirr(series, type) {
+  // Для графика (type='portfolio'): cashflows = [-valueStart, ..., +valueEnd]
+  // Для индекса — то же
+  if (series.length < 2) return null;
+  
+  const first = series[0];
+  const last = series[series.length - 1];
+  
+  const startValue = type === 'portfolio' ? first.value : first.price;
+  const endValue = type === 'portfolio' ? last.value : last.price;
+  
+  const flows = [
+    { date: first.date, amount: -startValue },
+    { date: last.date, amount: endValue }
+  ];
+  
+  return calcXIRR(flows);
+}
+
+function renderBenchmarkChart(portfolioNorm, indexNorm, indexName) {
+  const ctx = document.getElementById('chart-benchmark').getContext('2d');
+  if (S.benchmarkChart) S.benchmarkChart.destroy();
+  
+  // Сливаем даты из обоих рядов
+  const allDates = [...new Set([
+    ...portfolioNorm.map(p => p.date),
+    ...indexNorm.map(p => p.date)
+  ])].sort();
+  
+  // Заполняем значения (интерполяция forward fill)
+  const fillForward = (series, dates) => {
+    let lastVal = null;
+    const map = {};
+    series.forEach(s => { map[s.date] = s.value; });
+    
+    return dates.map(d => {
+      if (map[d] !== undefined) { lastVal = map[d]; return lastVal; }
+      return lastVal;
+    });
+  };
+  
+  const portfolioData = fillForward(portfolioNorm, allDates);
+  const indexData = fillForward(indexNorm, allDates);
+  
+  S.benchmarkChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: allDates,
+      datasets: [
+        {
+          label: 'Портфель',
+          data: portfolioData,
+          borderColor: '#6c63ff',
+          backgroundColor: 'rgba(108, 99, 255, 0.05)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: indexName,
+          data: indexData,
+          borderColor: '#f6ad55',
+          backgroundColor: 'rgba(246, 173, 85, 0.05)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderDash: [6, 4],
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} (от 100)`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 },
+          grid: { color: 'rgba(46, 49, 72, 0.3)' }
+        },
+        y: {
+          ticks: { color: '#8892a4', font: { size: 10 } },
+          grid: { color: 'rgba(46, 49, 72, 0.3)' }
+        }
+      }
+    }
+  });
+}
+
+function renderBenchmarkTable(portfolioHistory, indexHistory, indexName) {
+  const tbody = document.getElementById('benchmark-table-body');
+  if (!tbody) return;
+  
+  // Группируем по годам
+  const byYear = {};
+  
+  // Портфель
+  const portfolioByYear = {};
+  portfolioHistory.forEach(p => {
+    const y = p.date.substring(0, 4);
+    if (!portfolioByYear[y]) portfolioByYear[y] = { first: p.value, last: p.value };
+    portfolioByYear[y].last = p.value;
+  });
+  
+  // Индекс
+  const indexByYear = {};
+  indexHistory.forEach(p => {
+    const y = p.date.substring(0, 4);
+    if (!indexByYear[y]) indexByYear[y] = { first: p.price, last: p.price };
+    indexByYear[y].last = p.price;
+  });
+  
+  const years = [...new Set([...Object.keys(portfolioByYear), ...Object.keys(indexByYear)])].sort().reverse();
+  
+  let html = '';
+  years.forEach(year => {
+    const pData = portfolioByYear[year];
+    const iData = indexByYear[year];
+    
+    const pReturn = pData ? ((pData.last - pData.first) / pData.first * 100) : null;
+    const iReturn = iData ? ((iData.last - iData.first) / iData.first * 100) : null;
+    const diff = (pReturn !== null && iReturn !== null) ? (pReturn - iReturn) : null;
+    
+    const pStr = pReturn !== null ? (pReturn >= 0 ? '+' : '') + pReturn.toFixed(2) + '%' : '—';
+    const iStr = iReturn !== null ? (iReturn >= 0 ? '+' : '') + iReturn.toFixed(2) + '%' : '—';
+    const dStr = diff !== null ? (diff >= 0 ? '+' : '') + diff.toFixed(2) + '%' : '—';
+    
+    const pCls = pReturn !== null ? (pReturn >= 0 ? 'c-income' : 'c-expense') : 'c-muted';
+    const iCls = iReturn !== null ? (iReturn >= 0 ? 'c-income' : 'c-expense') : 'c-muted';
+    const dCls = diff !== null ? (diff >= 0 ? 'c-income' : 'c-expense') : 'c-muted';
+    
+    html += `<tr>
+      <td>${year}</td>
+      <td class="${pCls}">${pStr}</td>
+      <td class="${iCls}">${iStr}</td>
+      <td class="${dCls}" style="font-weight:600">${dStr}</td>
+    </tr>`;
+  });
+  
+  tbody.innerHTML = html || '<tr><td colspan="4" class="empty">Нет данных</td></tr>';
+}
+
+// Кэш истории индекса — она меняется редко
+const INDEX_CACHE_TTL = 60 * 60 * 1000;  // 1 час
+
+async function loadIndexHistoryCached(indexCode) {
+  const key = 'index_history_' + indexCode;
+  const cached = localStorage.getItem(key);
+  
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      if (Date.now() - data.timestamp < INDEX_CACHE_TTL) {
+        return data.data;
+      }
+    } catch(e) {}
+  }
+  
+  const history = await loadIndexHistory(indexCode);
+  
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      timestamp: Date.now(),
+      data: history
+    }));
+  } catch(e) {}
+  
+  return history;
+}
 </script>
 </body>
 </html>
