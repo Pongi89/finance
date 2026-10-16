@@ -3916,7 +3916,7 @@ function showCategoryYearChart(categoryName, type = 'expense') {
 
   const labels = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
-  const ctx = canvasNow.getContext('2d');
+  const ctx = canvas.getContext('2d');
   if (window._categoryChartInstance) window._categoryChartInstance.destroy();
 
   const hasPrevData = prevData.some(v => v > 0);
@@ -6844,7 +6844,7 @@ function renderTickerChart() {
     });
   }
   
-  const ctx = canvasNow.getContext('2d');
+  const ctx = canvas.getContext('2d');
   _tickerModalState.chart = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
