@@ -6682,8 +6682,8 @@ function renderTickerChart() {
   }
   if (!canvas) return;
   
-  const history = _tickerModalState.history || [];
-  if (!history.length) {
+  const hist = _tickerModalState.history || [];
+  if (!hist.length) {
     if (_tickerModalState.chart) {
       _tickerModalState.chart.destroy();
       _tickerModalState.chart = null;
@@ -6691,31 +6691,6 @@ function renderTickerChart() {
     wrap.innerHTML = '<div class="empty" style="height:100%;display:flex;align-items:center;justify-content:center">Нет данных по истории цены</div>';
     return;
   }
-  
-  // ... дальше всё как было, но используем canvas (не canvasNow)
-  
-  const history = _tickerModalState.history || [];
-  if (!history.length) {
-    if (_tickerModalState.chart) {
-      _tickerModalState.chart.destroy();
-      _tickerModalState.chart = null;
-    }
-    // ✅ ФИКС: показываем сообщение вместо пустого канваса
-    const wrap = canvas.parentElement;
-    if (wrap) {
-      wrap.innerHTML = '<div class="empty" style="height:100%;display:flex;align-items:center;justify-content:center">Нет данных по истории цены.<br>Проверьте, что тикер и тип актива верны.</div>';
-    }
-    return;
-  }
-  
-  // ✅ Если ранее вставляли заглушку — восстанавливаем canvas
-  if (!document.getElementById('ticker-modal-chart')) {
-    const wrap = canvas.parentElement;
-    if (wrap) wrap.innerHTML = '<canvas id="ticker-modal-chart"></canvas>';
-  }
-  
-  const canvasNow = document.getElementById('ticker-modal-chart');
-  if (!canvasNow) return;
   
   // Фильтруем по периоду
   const today = new Date();
@@ -6731,17 +6706,18 @@ function renderTickerChart() {
   }
   
   const cutoffStr = cutoffDate.toISOString().substring(0, 10);
-  const filtered = history.filter(h => h.date >= cutoffStr);
+  const filtered = hist.filter(h => h.date >= cutoffStr);
   
   if (!filtered.length) {
     if (_tickerModalState.chart) {
       _tickerModalState.chart.destroy();
       _tickerModalState.chart = null;
     }
+    wrap.innerHTML = '<div class="empty" style="height:100%;display:flex;align-items:center;justify-content:center">Нет данных за выбранный период</div>';
     return;
   }
   
-  // Собираем точки покупок/продаж
+   // Собираем точки покупок/продаж
   const positions = _tickerModalState.positions || [];
   const firstPos = positions[0];
   
