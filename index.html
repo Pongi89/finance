@@ -7124,18 +7124,14 @@ async function renderBenchmark() {
   
   statsEl.innerHTML = '<div class="loader">Загрузка...</div>';
   
-  // 1. Получаем историю портфеля (виртуальный портфель: сколько стоил бы портфель, вложенный в те же даты)
   const portfolioHistory = await calcPortfolioHistory();
-  
-  // 2. Получаем историю индекса
-  const indexHistory = await loadIndexHistory(S.benchmarkIndex);
+  const indexHistory = await loadIndexHistoryCached(S.benchmarkIndex);
   
   if (!portfolioHistory.length || !indexHistory.length) {
     statsEl.innerHTML = '<div class="empty">Нет данных для сравнения</div>';
     return;
   }
   
-  // 3. Фильтруем по периоду
   const cutoff = getBenchmarkCutoff();
   const filteredPortfolio = portfolioHistory.filter(p => p.date >= cutoff);
   const filteredIndex = indexHistory.filter(p => p.date >= cutoff);
@@ -7145,147 +7141,85 @@ async function renderBenchmark() {
     return;
   }
   
-  // 4. Нормализуем оба ряда к 100 на старте
-  const portfolioStart = filteredPortfolio[0].value;
-  const indexStart = filteredIndex[0].price;
+  // Выравниваем по общим датам
+  const allDates = [...new Set([
+    ...filteredPortfolio.map(p => p.date),
+    ...filteredIndex.map(p => p.date)
+  ])].sort();
   
-  const portfolioNorm = filteredPortfolio.map(p => ({
+  const pfMap = {}; filteredPortfolio.forEach(p => pfMap[p.date] = p.value);
+  const ixMap = {}; filteredIndex.forEach(p => ixMap[p.date] = p.price);
+  
+  let lastPf = null, lastIx = null;
+  const alignedPf = [];
+  const alignedIx = [];
+  for (const d of allDates) {
+    if (pfMap[d] !== undefined) lastPf = pfMap[d];
+    if (ixMap[d] !== undefined) lastIx = ixMap[d];
+    if (lastPf !== null) alignedPf.push({ date: d, value: lastPf });
+    if (lastIx !== null) alignedIx.push({ date: d, value: lastIx });
+  }
+  
+  if (!alignedPf.length || !alignedIx.length) {
+    statsEl.innerHTML = '<div class="empty">Нет синхронных данных</div>';
+    return;
+  }
+  
+  // Индексный эквивалент — сколько стоил бы портфель, если бы ты купил MCFTR на старте
+  const pfStart = alignedPf[0].value;
+  const ixStart = alignedIx[0].value;
+  
+  const indexEquivalent = alignedIx.map(p => ({
     date: p.date,
-    value: portfolioStart > 0 ? (p.value / portfolioStart) * 100 : 0
+    value: pfStart * (p.value / ixStart)
   }));
   
-  const indexNorm = filteredIndex.map(p => ({
-    date: p.date,
-    value: (p.price / indexStart) * 100
-  }));
+  // Итоги в рублях
+  const pfEnd = alignedPf[alignedPf.length - 1].value;
+  const ixEnd = indexEquivalent[indexEquivalent.length - 1].value;
   
-  // 5. Считаем итоги
-  const portfolioEnd = portfolioNorm[portfolioNorm.length - 1].value;
-  const indexEnd = indexNorm[indexNorm.length - 1].value;
+  const diffRub = pfEnd - ixEnd;
+  const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
   
-  const portfolioReturn = portfolioEnd - 100;
-  const indexReturn = indexEnd - 100;
-  const diff = portfolioReturn - indexReturn;
+  // Проценты возврата
+  const pfReturn = pfStart > 0 ? ((pfEnd - pfStart) / pfStart) * 100 : 0;
+  const ixReturn = ixStart > 0 ? ((ixEnd - ixStart) / ixStart) * 100 : 0;
   
-  // 6. Считаем XIRR для обоих за период
-  const portfolioXirr = calcBenchmarkXirr(filteredPortfolio, 'portfolio');
-  const indexXirr = calcBenchmarkXirr(filteredIndex, 'index');
+  // XIRR
+  const portfolioXirr = calcBenchmarkXirr(alignedPf, 'portfolio');
+  const indexXirr = calcBenchmarkXirr(alignedIx, 'index');
   
-  // 7. Рисуем статистику
-  const sign = diff >= 0 ? '+' : '';
-  const diffColor = diff >= 0 ? 'c-income' : 'c-expense';
-  const diffWord = diff >= 0 ? 'обогнал' : 'отстал';
+  const diffSign = diffRub >= 0 ? '+' : '';
+  const diffColor = diffRub >= 0 ? 'c-income' : 'c-expense';
+  const diffWord = diffRub >= 0 ? 'обгоняет' : 'отстаёт от';
+  const periodLabel = S.benchmarkPeriod === 'all' ? 'всё время' :
+                      S.benchmarkPeriod === '1y' ? 'последний год' :
+                      S.benchmarkPeriod === '3y' ? 'последние 3 года' :
+                      'последние 5 лет';
   
   statsEl.innerHTML = `
-    <div class="stat-card">
-      <div class="stat-label">Портфель (${S.benchmarkPeriod === 'all' ? 'всё время' : S.benchmarkPeriod})</div>
-      <div class="stat-value ${portfolioReturn >= 0 ? 'c-income' : 'c-expense'}">${portfolioReturn >= 0 ? '+' : ''}${portfolioReturn.toFixed(2)}%</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px">XIRR: ${portfolioXirr !== null ? (portfolioXirr >= 0 ? '+' : '') + portfolioXirr.toFixed(2) + '%' : '—'}</div>
+    <div class="stat-card" style="grid-column:1/-1;background:${diffRub >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffRub >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
+      <div class="stat-label" style="font-size:12px">🎯 Портфель ${diffWord} ${S.benchmarkIndex}</div>
+      <div class="stat-value ${diffColor}" style="font-size:22px">${diffSign}${fmt(diffRub)} <span style="font-size:16px;font-weight:500;opacity:0.8">(${diffSign}${diffPct.toFixed(2)}%)</span></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">за ${periodLabel}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">${S.benchmarkIndex}</div>
-      <div class="stat-value ${indexReturn >= 0 ? 'c-income' : 'c-expense'}">${indexReturn >= 0 ? '+' : ''}${indexReturn.toFixed(2)}%</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px">XIRR: ${indexXirr !== null ? (indexXirr >= 0 ? '+' : '') + indexXirr.toFixed(2) + '%' : '—'}</div>
+      <div class="stat-label">💼 Портфель сейчас</div>
+      <div class="stat-value c-accent" style="font-size:20px">${fmt(pfEnd)}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">${pfReturn >= 0 ? '+' : ''}${pfReturn.toFixed(2)}% · XIRR ${portfolioXirr !== null ? (portfolioXirr >= 0 ? '+' : '') + portfolioXirr.toFixed(2) + '%' : '—'}</div>
     </div>
-    <div class="stat-card" style="background:${diff >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diff >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
-      <div class="stat-label">Портфель ${diffWord} индекс</div>
-      <div class="stat-value ${diffColor}">${sign}${diff.toFixed(2)}%</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px">за период</div>
+    <div class="stat-card">
+      <div class="stat-label">📊 ${S.benchmarkIndex} эквивалент</div>
+      <div class="stat-value c-text" style="font-size:20px">${fmt(ixEnd)}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">${ixReturn >= 0 ? '+' : ''}${ixReturn.toFixed(2)}% · XIRR ${indexXirr !== null ? (indexXirr >= 0 ? '+' : '') + indexXirr.toFixed(2) + '%' : '—'}</div>
     </div>
   `;
   
-  // 8. Рисуем график
-  renderBenchmarkChart(portfolioNorm, indexNorm, S.benchmarkIndex);
+  // График в рублях
+  renderBenchmarkChartInRubles(alignedPf, indexEquivalent, S.benchmarkIndex);
   
-  // 9. Таблица по годам
-  renderBenchmarkTable(portfolioHistory, indexHistory, S.benchmarkIndex);
-}
-
-function getBenchmarkCutoff() {
-  const now = new Date();
-  let years = 3;
-  if (S.benchmarkPeriod === '1y') years = 1;
-  else if (S.benchmarkPeriod === '3y') years = 3;
-  else if (S.benchmarkPeriod === '5y') years = 5;
-  else return '2000-01-01';  // all
-  
-  const d = new Date(now.getFullYear() - years, now.getMonth(), now.getDate());
-  return d.toISOString().substring(0, 10);
-}
-
-// Считаем виртуальную "стоимость портфеля" за каждый день —
-// сколько стоил бы текущий портфель на каждую дату
-async function calcPortfolioHistory() {
-  const portfolio = await loadPortfolio();
-  const positions = portfolio.positions || [];
-  if (!positions.length) return [];
-  
-  // Границы: от самой ранней покупки до сегодня
-  const allDates = [];
-  for (const p of positions) {
-    const r = await apiGet({
-      action: 'getTickerHistory',
-      ticker: p.ticker,
-      asset_type: p.asset_type,
-      from: '2019-01-01',
-      to: new Date().toISOString().substring(0, 10)
-    });
-    if (r.data && r.data.length) {
-      allDates.push(...r.data.map(d => d.date));
-    }
-  }
-  
-  if (!allDates.length) return [];
-  
-  allDates.sort();
-  const startDate = allDates[0];
-  const endDate = new Date().toISOString().substring(0, 10);
-  
-  // Собираем историю всех бумаг
-  const histories = {};
-  for (const p of positions) {
-    const r = await apiGet({
-      action: 'getTickerHistory',
-      ticker: p.ticker,
-      asset_type: p.asset_type,
-      from: startDate,
-      to: endDate
-    });
-    histories[p.ticker] = r.data || [];
-  }
-  
-  // Строим временной ряд: для каждой даты — сумма (qty × price)
-  // qty берём текущий, чтобы упростить — это "виртуальный портфель"
-  // (можно улучшить: учитывать все покупки/продажи, но это усложнит логику)
-  
-  // Собираем все уникальные даты
-  const allDateSet = new Set();
-  Object.values(histories).forEach(arr => arr.forEach(h => allDateSet.add(h.date)));
-  const dates = [...allDateSet].sort();
-  
-  const result = [];
-  for (const date of dates) {
-    let totalValue = 0;
-    for (const p of positions) {
-      const hist = histories[p.ticker] || [];
-      // Находим последнюю цену <= date
-      let price = null;
-      for (let i = hist.length - 1; i >= 0; i--) {
-        if (hist[i].date <= date) { price = hist[i].price; break; }
-      }
-      if (price !== null) {
-        // Для облигаций цена в % от номинала
-        const isBond = ['bond', 'currency_bond'].includes(p.asset_type);
-        const priceRub = isBond ? (price / 100 * (p.face_value || 1000)) : price;
-        totalValue += p.quantity * priceRub;
-      }
-    }
-    if (totalValue > 0) {
-      result.push({ date, value: totalValue });
-    }
-  }
-  
-  return result;
+  // Таблица по годам
+  renderBenchmarkTableInRubles(portfolioHistory, indexHistory, S.benchmarkIndex);
 }
 
 async function loadIndexHistory(indexCode) {
@@ -7322,54 +7256,41 @@ function calcBenchmarkXirr(series, type) {
   return calcXIRR(flows);
 }
 
-function renderBenchmarkChart(portfolioNorm, indexNorm, indexName) {
-  const ctx = document.getElementById('chart-benchmark').getContext('2d');
+function renderBenchmarkChartInRubles(portfolioData, indexEquivalent, indexName) {
+  const canvas = document.getElementById('chart-benchmark');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
   if (S.benchmarkChart) S.benchmarkChart.destroy();
   
-  // Сливаем даты из обоих рядов
-  const allDates = [...new Set([
-    ...portfolioNorm.map(p => p.date),
-    ...indexNorm.map(p => p.date)
-  ])].sort();
-  
-  // Заполняем значения (интерполяция forward fill)
-  const fillForward = (series, dates) => {
-    let lastVal = null;
-    const map = {};
-    series.forEach(s => { map[s.date] = s.value; });
-    
-    return dates.map(d => {
-      if (map[d] !== undefined) { lastVal = map[d]; return lastVal; }
-      return lastVal;
-    });
-  };
-  
-  const portfolioData = fillForward(portfolioNorm, allDates);
-  const indexData = fillForward(indexNorm, allDates);
+  const labels = portfolioData.map(p => p.date);
+  const pfValues = portfolioData.map(p => p.value);
+  const ixValues = indexEquivalent.map(p => p.value);
   
   S.benchmarkChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: allDates,
+      labels,
       datasets: [
         {
           label: 'Портфель',
-          data: portfolioData,
+          data: pfValues,
           borderColor: '#6c63ff',
-          backgroundColor: 'rgba(108, 99, 255, 0.05)',
+          backgroundColor: 'rgba(108, 99, 255, 0.1)',
           fill: true,
           tension: 0.2,
           pointRadius: 0,
+          pointHoverRadius: 4,
           borderWidth: 2,
         },
         {
           label: indexName,
-          data: indexData,
+          data: ixValues,
           borderColor: '#f6ad55',
           backgroundColor: 'rgba(246, 173, 85, 0.05)',
           fill: true,
           tension: 0.2,
           pointRadius: 0,
+          pointHoverRadius: 4,
           borderWidth: 2,
           borderDash: [6, 4],
         }
@@ -7383,7 +7304,7 @@ function renderBenchmarkChart(portfolioNorm, indexNorm, indexName) {
         legend: { labels: { color: '#8892a4', font: { size: 12 } } },
         tooltip: {
           callbacks: {
-            label: (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} (от 100)`
+            label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}`
           }
         }
       },
@@ -7393,7 +7314,7 @@ function renderBenchmarkChart(portfolioNorm, indexNorm, indexName) {
           grid: { color: 'rgba(46, 49, 72, 0.3)' }
         },
         y: {
-          ticks: { color: '#8892a4', font: { size: 10 } },
+          ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) },
           grid: { color: 'rgba(46, 49, 72, 0.3)' }
         }
       }
@@ -7401,53 +7322,66 @@ function renderBenchmarkChart(portfolioNorm, indexNorm, indexName) {
   });
 }
 
-function renderBenchmarkTable(portfolioHistory, indexHistory, indexName) {
+function renderBenchmarkTableInRubles(portfolioHistory, indexHistory, indexName) {
   const tbody = document.getElementById('benchmark-table-body');
   if (!tbody) return;
   
-  // Группируем по годам
-  const byYear = {};
-  
-  // Портфель
-  const portfolioByYear = {};
+  // Группируем портфель по годам
+  const pfByYear = {};
   portfolioHistory.forEach(p => {
     const y = p.date.substring(0, 4);
-    if (!portfolioByYear[y]) portfolioByYear[y] = { first: p.value, last: p.value };
-    portfolioByYear[y].last = p.value;
+    if (!pfByYear[y]) pfByYear[y] = { first: p.value, last: p.value };
+    pfByYear[y].last = p.value;
   });
   
-  // Индекс
-  const indexByYear = {};
+  // Группируем индекс по годам
+  const ixByYear = {};
   indexHistory.forEach(p => {
     const y = p.date.substring(0, 4);
-    if (!indexByYear[y]) indexByYear[y] = { first: p.price, last: p.price };
-    indexByYear[y].last = p.price;
+    if (!ixByYear[y]) ixByYear[y] = { first: p.price, last: p.price };
+    ixByYear[y].last = p.price;
   });
   
-  const years = [...new Set([...Object.keys(portfolioByYear), ...Object.keys(indexByYear)])].sort().reverse();
+  const years = [...new Set([...Object.keys(pfByYear), ...Object.keys(ixByYear)])].sort().reverse();
+  
+  // Начальные значения для расчёта индексного эквивалента
+  const pfAllYears = Object.keys(pfByYear).sort();
+  const pfStartValue = pfAllYears.length ? pfByYear[pfAllYears[0]].first : 0;
+  const ixAllYears = Object.keys(ixByYear).sort();
+  const ixStartValue = ixAllYears.length ? ixByYear[ixAllYears[0]].first : 0;
   
   let html = '';
   years.forEach(year => {
-    const pData = portfolioByYear[year];
-    const iData = indexByYear[year];
+    const pData = pfByYear[year];
+    const iData = ixByYear[year];
+    if (!pData || !iData) return;
     
-    const pReturn = pData ? ((pData.last - pData.first) / pData.first * 100) : null;
-    const iReturn = iData ? ((iData.last - iData.first) / iData.first * 100) : null;
-    const diff = (pReturn !== null && iReturn !== null) ? (pReturn - iReturn) : null;
+    // Индексный эквивалент на начало и конец года
+    const ixStart = pfStartValue * (iData.first / ixStartValue);
+    const ixEnd = pfStartValue * (iData.last / ixStartValue);
     
-    const pStr = pReturn !== null ? (pReturn >= 0 ? '+' : '') + pReturn.toFixed(2) + '%' : '—';
-    const iStr = iReturn !== null ? (iReturn >= 0 ? '+' : '') + iReturn.toFixed(2) + '%' : '—';
-    const dStr = diff !== null ? (diff >= 0 ? '+' : '') + diff.toFixed(2) + '%' : '—';
+    // Реальные стоимости на начало/конец года
+    const pfEndValue = pData.last;
+    const ixEndValue = ixEnd;
     
-    const pCls = pReturn !== null ? (pReturn >= 0 ? 'c-income' : 'c-expense') : 'c-muted';
-    const iCls = iReturn !== null ? (iReturn >= 0 ? 'c-income' : 'c-expense') : 'c-muted';
-    const dCls = diff !== null ? (diff >= 0 ? 'c-income' : 'c-expense') : 'c-muted';
+    const pfReturn = pData.first > 0 ? ((pData.last - pData.first) / pData.first * 100) : 0;
+    const ixReturn = ixStart > 0 ? ((ixEnd - ixStart) / ixStart * 100) : 0;
+    const diffRub = pfEndValue - ixEndValue;
+    const diffPct = ixEndValue > 0 ? (diffRub / ixEndValue * 100) : 0;
+    
+    const pfStr = `${(pfReturn >= 0 ? '+' : '')}${pfReturn.toFixed(2)}%`;
+    const ixStr = `${(ixReturn >= 0 ? '+' : '')}${ixReturn.toFixed(2)}%`;
+    const diffStr = `${diffRub >= 0 ? '+' : ''}${fmtShort(diffRub)} (${diffRub >= 0 ? '+' : ''}${diffPct.toFixed(2)}%)`;
+    
+    const pfCls = pfReturn >= 0 ? 'c-income' : 'c-expense';
+    const ixCls = ixReturn >= 0 ? 'c-income' : 'c-expense';
+    const dCls = diffRub >= 0 ? 'c-income' : 'c-expense';
     
     html += `<tr>
       <td>${year}</td>
-      <td class="${pCls}">${pStr}</td>
-      <td class="${iCls}">${iStr}</td>
-      <td class="${dCls}" style="font-weight:600">${dStr}</td>
+      <td class="${pfCls}">${pfStr}</td>
+      <td class="${ixCls}">${ixStr}</td>
+      <td class="${dCls}" style="font-weight:600">${diffStr}</td>
     </tr>`;
   });
   
