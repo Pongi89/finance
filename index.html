@@ -5181,8 +5181,7 @@ async function renderInvestmentsPortfolio() {
       
       // Если 2+ счетов — рендерим строку-тикер и (опционально) строки счетов
       const tickerCollapsed = invCollapsedTickers[tickerKey] !== false; // по умолчанию свёрнут
-      const tickerArrow = tickerCollapsed ? '▸' : '▾';
-      
+        
       const tickerPercentClass = agg.profitPercent > 0 ? 'inv-profit-pos' : agg.profitPercent < 0 ? 'inv-profit-neg' : '';
       const tickerProfitClass = agg.profit > 0 ? 'inv-profit-pos' : agg.profit < 0 ? 'inv-profit-neg' : '';
       const tickerSign = agg.profit > 0 ? '+' : '';
@@ -5207,7 +5206,6 @@ async function renderInvestmentsPortfolio() {
       html += `<tr class="inv-ticker-header" onclick="invToggleTicker('${tickerKey}')">
         <td>
           <div class="inv-asset-cell">
-            <span style="color:var(--text2);margin-right:6px">${tickerArrow}</span>
             <div class="inv-asset-icon">${icon}</div>
             <div>
               <div class="inv-asset-name">${agg.name || agg.ticker}</div>
