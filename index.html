@@ -5145,11 +5145,15 @@ await renderInvestmentsSummary(positions);
     });
     
     // Суммы по разделу
-    const sumInvested = group.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
-    const sumValue = group.reduce((s, p) => s + (p.currentValue || 0), 0);
-    const sumPayouts = group.reduce((s, p) => s + (p.payouts12m || 0), 0);
-    const sumProfit = group.reduce((s, p) => s + (p.profit || 0), 0);
-    const sumShare = totalValue > 0 ? (sumValue / totalValue * 100) : 0;
+// ✅ Для money_market исключаем totalBuyCost (там оборот, а не вложения)
+const isMoneyMarketGroup = type === 'money_market';
+const sumInvested = isMoneyMarketGroup 
+  ? 0 
+  : group.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+const sumValue = group.reduce((s, p) => s + (p.currentValue || 0), 0);
+const sumPayouts = group.reduce((s, p) => s + (p.payouts12m || 0), 0);
+const sumProfit = group.reduce((s, p) => s + (p.profit || 0), 0);
+const sumShare = totalValue > 0 ? (sumValue / totalValue * 100) : 0;
     const weightedPercent = sumInvested > 0 ? (sumProfit / sumInvested * 100) : 0;
     const weightedDivYield = sumInvested > 0 ? (sumPayouts / sumInvested * 100) : 0;
     
@@ -5166,7 +5170,7 @@ await renderInvestmentsSummary(positions);
         <span style="color:var(--text2);font-size:11px;margin-left:6px">(${group.length})</span>
       </td>
       <td>—</td>
-      <td>${fmt(sumInvested)}</td>
+      <td>${isMoneyMarketGroup ? '—' : fmt(sumInvested)}</td>
       <td>${fmt(sumValue)}</td>
       <td class="${percentClass}">${weightedPercent >= 0 ? '+' : ''}${weightedPercent.toFixed(2)}%</td>
       <td>${sumPayouts > 0 ? fmt(sumPayouts) : '—'}</td>
@@ -5241,7 +5245,10 @@ await renderInvestmentsSummary(positions);
   });
   
   // Итого
-  const totalInvested = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+  // ✅ Исключаем money_market из "Вложено"
+  const totalInvested = positions
+  .filter(p => p.asset_type !== 'money_market')
+  .reduce((s, p) => s + (p.totalBuyCost || 0), 0);
   const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
   const totalWeightedPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
   const totalPercentClass = totalWeightedPercent > 0 ? 'inv-profit-pos' : totalWeightedPercent < 0 ? 'inv-profit-neg' : '';
