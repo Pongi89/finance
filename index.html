@@ -510,7 +510,52 @@ th.sortable.sorted-desc::after {
   padding: 10px 12px;
   text-align: right;
 }
+/* Строка-тикер (агрегат по счетам) */
+.inv-ticker-header td {
+  background: rgba(108, 99, 255, 0.06) !important;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: right;
+}
 
+.inv-ticker-header td:first-child {
+  text-align: left;
+  cursor: pointer;
+}
+
+.inv-ticker-header:hover td {
+  background: rgba(108, 99, 255, 0.12) !important;
+}
+
+.inv-ticker-header .inv-asset-cell {
+  padding-left: 20px;
+}
+
+/* Строка счёта внутри тикера */
+.inv-account-row td {
+  background: var(--surface);
+}
+
+.inv-account-row .inv-asset-cell {
+  padding-left: 48px;
+  opacity: 0.85;
+}
+
+.inv-account-row .inv-asset-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+
+.inv-account-row .inv-asset-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.inv-account-row .inv-asset-ticker {
+  font-size: 10px;
+}
 .inv-section-header td:first-child {
   text-align: left;
   cursor: pointer;
@@ -5023,33 +5068,30 @@ async function renderInvestmentsPortfolio() {
   
   let html = '<div class="inv-table-wrap"><table class="inv-table">';
 
-// Colgroup — фиксированные ширины колонок
-html += `<colgroup>
-  <col style="width: 22%">
-  <col style="width: 7%">
-  <col style="width: 10%">
-  <col style="width: 10%">
-  <col style="width: 8%">
-  <col style="width: 11%">
-  <col style="width: 9%">
-  <col style="width: 12%">
-  <col style="width: 11%">
-</colgroup>`;
+  html += `<colgroup>
+    <col style="width: 22%">
+    <col style="width: 7%">
+    <col style="width: 10%">
+    <col style="width: 10%">
+    <col style="width: 8%">
+    <col style="width: 11%">
+    <col style="width: 9%">
+    <col style="width: 12%">
+    <col style="width: 11%">
+  </colgroup>`;
 
-// Заголовки с сортировкой
-html += `<thead><tr>
+  html += `<thead><tr>
     <th>Актив</th>
     <th class="inv-sortable" onclick="invSort('qty')">Кол-во</th>
     <th class="inv-sortable" onclick="invSort('invested')">Вложено</th>
     <th class="inv-sortable" onclick="invSort('value')">Текущая</th>
     <th class="inv-sortable" onclick="invSort('percent')">Доход %</th>
     <th class="inv-sortable" onclick="invSort('payouts')" title="Выплаты за последние 12 месяцев">Выплаты 12м</th>
-    <th class="inv-sortable" onclick="invSort('divyield')" title="Доходность к цене покупки: выплаты 12м / вложено × 100">Див. %</th>
+    <th class="inv-sortable" onclick="invSort('divyield')" title="Доходность к цене покупки">Див. %</th>
     <th class="inv-sortable" onclick="invSort('profit')">Прибыль</th>
     <th>Доля</th>
   </tr></thead><tbody>`;
   
-  // Рендерим каждый раздел
   const labels = {
     stock: '📈 Акции',
     bond: '📜 Облигации',
@@ -5062,92 +5104,209 @@ html += `<thead><tr>
     const group = groups[type];
     if (!group.length) return;
     
-    // Сортируем
+    // Группируем по тикеру
+    const byTicker = {};
+    group.forEach(p => {
+      if (!byTicker[p.ticker]) byTicker[p.ticker] = [];
+      byTicker[p.ticker].push(p);
+    });
+    
+    // Сортируем тикеры
     const sort = invSortState[type];
-    const sorted = [...group].sort((a, b) => {
+    let tickers = Object.values(byTicker);
+    
+    // Считаем метрики по тикеру для сортировки
+    tickers = tickers.map(accounts => {
+      const agg = aggregateAccounts(accounts);
+      return { accounts, agg };
+    });
+    
+    tickers.sort((a, b) => {
       let va, vb;
       switch (sort.key) {
-  case 'qty': va = a.quantity || 0; vb = b.quantity || 0; break;
-  case 'invested': va = a.totalBuyCost || 0; vb = b.totalBuyCost || 0; break;
-  case 'value': va = a.currentValue || 0; vb = b.currentValue || 0; break;
-  case 'percent': va = a.profitPercent || 0; vb = b.profitPercent || 0; break;
-  case 'payouts': va = a.payouts12m || 0; vb = b.payouts12m || 0; break;
-  case 'divyield': 
-    va = a.totalBuyCost > 0 ? ((a.payouts12m || 0) / a.totalBuyCost * 100) : 0;
-    vb = b.totalBuyCost > 0 ? ((b.payouts12m || 0) / b.totalBuyCost * 100) : 0;
-    break;
-  case 'profit': va = a.profit || 0; vb = b.profit || 0; break;
-  default: va = a.currentValue || 0; vb = b.currentValue || 0;
-}
+        case 'qty': va = a.agg.quantity; vb = b.agg.quantity; break;
+        case 'invested': va = a.agg.totalBuyCost; vb = b.agg.totalBuyCost; break;
+        case 'value': va = a.agg.currentValue; vb = b.agg.currentValue; break;
+        case 'percent': va = a.agg.profitPercent; vb = b.agg.profitPercent; break;
+        case 'payouts': va = a.agg.payouts12m; vb = b.agg.payouts12m; break;
+        case 'divyield': va = a.agg.divYield; vb = b.agg.divYield; break;
+        case 'profit': va = a.agg.profit; vb = b.agg.profit; break;
+        default: va = a.agg.currentValue; vb = b.agg.currentValue;
+      }
       return sort.asc ? va - vb : vb - va;
     });
     
-    // Считаем суммы по разделу
+    // Суммы по разделу
     const sumInvested = group.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
     const sumValue = group.reduce((s, p) => s + (p.currentValue || 0), 0);
     const sumPayouts = group.reduce((s, p) => s + (p.payouts12m || 0), 0);
     const sumProfit = group.reduce((s, p) => s + (p.profit || 0), 0);
     const sumShare = totalValue > 0 ? (sumValue / totalValue * 100) : 0;
-    
-    // ✅ Средневзвешенный доход % = сумма прибыли / сумма вложенного
     const weightedPercent = sumInvested > 0 ? (sumProfit / sumInvested * 100) : 0;
-    // ✅ Средневзвешенная див. доходность
     const weightedDivYield = sumInvested > 0 ? (sumPayouts / sumInvested * 100) : 0;
+    
     const percentClass = weightedPercent > 0 ? 'inv-profit-pos' : weightedPercent < 0 ? 'inv-profit-neg' : '';
     const profitClass = sumProfit > 0 ? 'inv-profit-pos' : sumProfit < 0 ? 'inv-profit-neg' : '';
     const isCollapsed = invCollapsed[type];
     const arrow = isCollapsed ? '▸' : '▾';
     
-    // Строка-заголовок раздела
+    // Строка раздела
     html += `<tr class="inv-section-header" onclick="invToggleSection('${type}')">
-  <td style="text-align:left;cursor:pointer">
-    <span style="margin-right:6px;color:var(--text2)">${arrow}</span>
-    <span style="font-weight:600">${labels[type]}</span>
-    <span style="color:var(--text2);font-size:11px;margin-left:6px">(${group.length})</span>
-  </td>
-  <td>—</td>
-  <td>${fmt(sumInvested)}</td>
-  <td>${fmt(sumValue)}</td>
-  <td class="${percentClass}">${weightedPercent >= 0 ? '+' : ''}${weightedPercent.toFixed(2)}%</td>
-  <td>${sumPayouts > 0 ? fmt(sumPayouts) : '—'}</td>
-  <td>${weightedDivYield > 0 ? '+' + weightedDivYield.toFixed(2) + '%' : '—'}</td>
-  <td class="${profitClass}">${sumProfit >= 0 ? '+' : ''}${fmt(sumProfit)}</td>
-  <td>${sumShare.toFixed(1)}%</td>
-</tr>`;
+      <td style="text-align:left;cursor:pointer">
+        <span style="margin-right:6px;color:var(--text2)">${arrow}</span>
+        <span style="font-weight:600">${labels[type]}</span>
+        <span style="color:var(--text2);font-size:11px;margin-left:6px">(${group.length})</span>
+      </td>
+      <td>—</td>
+      <td>${fmt(sumInvested)}</td>
+      <td>${fmt(sumValue)}</td>
+      <td class="${percentClass}">${weightedPercent >= 0 ? '+' : ''}${weightedPercent.toFixed(2)}%</td>
+      <td>${sumPayouts > 0 ? fmt(sumPayouts) : '—'}</td>
+      <td>${weightedDivYield > 0 ? '+' + weightedDivYield.toFixed(2) + '%' : '—'}</td>
+      <td class="${profitClass}">${sumProfit >= 0 ? '+' : ''}${fmt(sumProfit)}</td>
+      <td>${sumShare.toFixed(1)}%</td>
+    </tr>`;
     
-    // Позиции раздела
-    if (!isCollapsed) {
-      sorted.forEach(p => {
-        html += renderInvRow(p, totalValue);
-      });
-    }
+    if (isCollapsed) return;
+    
+    // Рендерим тикеры
+    tickers.forEach(({ accounts, agg }) => {
+      const tickerKey = type + '|' + agg.ticker;
+      
+      // Если 1 счёт — рендерим как обычно
+      if (accounts.length === 1) {
+        html += renderInvRow(accounts[0], totalValue);
+        return;
+      }
+      
+      // Если 2+ счетов — рендерим строку-тикер и (опционально) строки счетов
+      const tickerCollapsed = invCollapsedTickers[tickerKey] !== false; // по умолчанию свёрнут
+      const tickerArrow = tickerCollapsed ? '▸' : '▾';
+      
+      const tickerPercentClass = agg.profitPercent > 0 ? 'inv-profit-pos' : agg.profitPercent < 0 ? 'inv-profit-neg' : '';
+      const tickerProfitClass = agg.profit > 0 ? 'inv-profit-pos' : agg.profit < 0 ? 'inv-profit-neg' : '';
+      const tickerSign = agg.profit > 0 ? '+' : '';
+      const tickerPercentSign = agg.profitPercent > 0 ? '+' : '';
+      
+      // Иконка по типу
+      const iconMap = {
+        stock: '📈', bond: '📜', currency_bond: '💱',
+        fund: '🏦', etf: '📊', zpif: '🏢',
+        money_market: '💵', gold: '🥇', metal: '🥇',
+      };
+      const icon = iconMap[agg.asset_type] || '📄';
+      
+      const tickerQty = Number.isInteger(agg.quantity) ? agg.quantity : agg.quantity.toFixed(2);
+      const tickerInvested = agg.asset_type === 'money_market' ? '—' : fmt(agg.totalBuyCost);
+      const tickerCurrent = agg.currentValue !== null ? fmt(agg.currentValue) : '—';
+      const tickerPayouts = agg.payouts12m > 0 ? fmt(agg.payouts12m) : '—';
+      const tickerDivYieldStr = agg.divYield > 0 ? '+' + agg.divYield.toFixed(2) + '%' : '—';
+      const tickerShare = agg.share.toFixed(1) + '%';
+      const tickerBarWidth = Math.min(agg.share * 2, 40);
+      
+      html += `<tr class="inv-ticker-header" onclick="invToggleTicker('${tickerKey}')">
+        <td>
+          <div class="inv-asset-cell">
+            <span style="color:var(--text2);margin-right:6px">${tickerArrow}</span>
+            <div class="inv-asset-icon">${icon}</div>
+            <div>
+              <div class="inv-asset-name">${agg.name || agg.ticker}</div>
+              <div class="inv-asset-ticker">${agg.ticker} · ${accounts.length} счёта</div>
+            </div>
+          </div>
+        </td>
+        <td>${tickerQty}</td>
+        <td>${tickerInvested}</td>
+        <td>${tickerCurrent}</td>
+        <td class="${tickerPercentClass}">${tickerPercentSign}${agg.profitPercent.toFixed(2)}%</td>
+        <td>${tickerPayouts}</td>
+        <td style="color:var(--accent);font-weight:600">${tickerDivYieldStr}</td>
+        <td class="${tickerProfitClass}">${tickerSign}${fmt(agg.profit)}</td>
+        <td><span class="inv-share-bar" style="width:${tickerBarWidth}px"></span>${tickerShare}</td>
+      </tr>`;
+      
+      // Строки счетов
+      if (!tickerCollapsed) {
+        accounts.forEach(acc => {
+          html += renderInvRow(acc, totalValue, true);
+        });
+      }
+    });
   });
   
- // Итого
-const totalInvested = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
-const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
-const totalWeightedPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
-const totalPercentClass = totalWeightedPercent > 0 ? 'inv-profit-pos' : totalWeightedPercent < 0 ? 'inv-profit-neg' : '';
-const totalProfitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
-
-// ✅ Сумма выплат за 12 мес и див. доходность
-const totalPayouts = positions.reduce((s, p) => s + (p.payouts12m || 0), 0);
-const totalDivYield = totalInvested > 0 ? (totalPayouts / totalInvested * 100) : 0;
-
-html += `<tr class="inv-total-row">
-  <td>ВСЕГО</td>
-  <td>—</td>
-  <td>${fmt(totalInvested)}</td>
-  <td>${fmt(totalValue)}</td>
-  <td class="${totalPercentClass}">${totalWeightedPercent >= 0 ? '+' : ''}${totalWeightedPercent.toFixed(2)}%</td>
-  <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
-  <td style="color:var(--accent);font-weight:600">${totalDivYield > 0 ? '+' + totalDivYield.toFixed(2) + '%' : '—'}</td>
-  <td class="${totalProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
-  <td>100%</td>
-</tr>`;
+  // Итого
+  const totalInvested = positions.reduce((s, p) => s + (p.totalBuyCost || 0), 0);
+  const totalProfit = positions.reduce((s, p) => s + (p.profit || 0), 0);
+  const totalWeightedPercent = totalInvested > 0 ? (totalProfit / totalInvested * 100) : 0;
+  const totalPercentClass = totalWeightedPercent > 0 ? 'inv-profit-pos' : totalWeightedPercent < 0 ? 'inv-profit-neg' : '';
+  const totalProfitClass = totalProfit > 0 ? 'inv-profit-pos' : totalProfit < 0 ? 'inv-profit-neg' : '';
+  
+  const totalPayouts = positions.reduce((s, p) => s + (p.payouts12m || 0), 0);
+  const totalDivYield = totalInvested > 0 ? (totalPayouts / totalInvested * 100) : 0;
+  
+  html += `<tr class="inv-total-row">
+    <td>ВСЕГО</td>
+    <td>—</td>
+    <td>${fmt(totalInvested)}</td>
+    <td>${fmt(totalValue)}</td>
+    <td class="${totalPercentClass}">${totalWeightedPercent >= 0 ? '+' : ''}${totalWeightedPercent.toFixed(2)}%</td>
+    <td>${totalPayouts > 0 ? fmt(totalPayouts) : '—'}</td>
+    <td style="color:var(--accent);font-weight:600">${totalDivYield > 0 ? '+' + totalDivYield.toFixed(2) + '%' : '—'}</td>
+    <td class="${totalProfitClass}">${totalProfit >= 0 ? '+' : ''}${fmt(totalProfit)}</td>
+    <td>100%</td>
+  </tr>`;
   
   html += '</tbody></table></div>';
   container.innerHTML = html;
+}
+
+// Агрегация метрик по нескольким счетам одного тикера
+function aggregateAccounts(accounts) {
+  let quantity = 0;
+  let totalBuyCost = 0;
+  let currentValue = 0;
+  let hasValue = false;
+  let payouts12m = 0;
+  let profit = 0;
+  
+  accounts.forEach(p => {
+    quantity += p.quantity || 0;
+    totalBuyCost += p.totalBuyCost || 0;
+    if (p.currentValue !== null && p.currentValue !== undefined) {
+      currentValue += p.currentValue;
+      hasValue = true;
+    }
+    payouts12m += p.payouts12m || 0;
+    profit += p.profit || 0;
+  });
+  
+  if (!hasValue) currentValue = null;
+  
+  const profitPercent = totalBuyCost > 0 ? (profit / totalBuyCost * 100) : 0;
+  const divYield = totalBuyCost > 0 ? (payouts12m / totalBuyCost * 100) : 0;
+  
+  return {
+    ticker: accounts[0].ticker,
+    name: accounts[0].name,
+    asset_type: accounts[0].asset_type,
+    currency: accounts[0].currency,
+    quantity,
+    totalBuyCost,
+    currentValue,
+    payouts12m,
+    profit,
+    profitPercent,
+    divYield,
+    share: 0, // заполним после
+  };
+}
+
+// Сворачивание тикера (второй уровень)
+const invCollapsedTickers = {};  // ключ: type|ticker, значение: true = свёрнут
+
+function invToggleTicker(tickerKey) {
+  invCollapsedTickers[tickerKey] = invCollapsedTickers[tickerKey] === false ? true : false;
+  renderInvestmentsPortfolio();
 }
 
 // Сворачивание/разворачивание раздела
@@ -5172,17 +5331,11 @@ function invSort(key) {
 }
 
 // Рендер одной строки
-function renderInvRow(p, totalValue) {
+function renderInvRow(p, totalValue, isAccount = false) {
   const iconMap = {
-    stock: '📈',
-    bond: '📜',
-    currency_bond: '💱',
-    fund: '🏦',
-    etf: '📊',
-    zpif: '🏢',
-    money_market: '💵',
-    gold: '🥇',
-    metal: '🥇',
+    stock: '📈', bond: '📜', currency_bond: '💱',
+    fund: '🏦', etf: '📊', zpif: '🏢',
+    money_market: '💵', gold: '🥇', metal: '🥇',
   };
   const icon = iconMap[p.asset_type] || '📄';
   
@@ -5195,11 +5348,10 @@ function renderInvRow(p, totalValue) {
   const percentSign = percent > 0 ? '+' : '';
   
   const payouts = p.payouts12m || 0;
-const payoutsStr = payouts > 0 ? fmt(payouts) : '—';
-
-// ✅ Див. доходность к вложенному
-const divYield = p.totalBuyCost > 0 ? (payouts / p.totalBuyCost * 100) : 0;
-const divYieldStr = divYield > 0 ? '+' + divYield.toFixed(2) + '%' : '—';
+  const payoutsStr = payouts > 0 ? fmt(payouts) : '—';
+  
+  const divYield = p.totalBuyCost > 0 ? (payouts / p.totalBuyCost * 100) : 0;
+  const divYieldStr = divYield > 0 ? '+' + divYield.toFixed(2) + '%' : '—';
   
   const share = totalValue > 0 && p.currentValue !== null ? (p.currentValue / totalValue * 100) : 0;
   const shareStr = share.toFixed(1) + '%';
@@ -5214,13 +5366,15 @@ const divYieldStr = divYield > 0 ? '+' + divYield.toFixed(2) + '%' : '—';
   
   const currentStr = p.currentValue !== null ? fmt(p.currentValue) : '—';
   
-  return `<tr class="inv-position-row">
+  const rowClass = isAccount ? 'inv-position-row inv-account-row' : 'inv-position-row';
+  
+  return `<tr class="${rowClass}">
     <td>
       <div class="inv-asset-cell">
         <div class="inv-asset-icon">${icon}</div>
         <div>
-          <div class="inv-asset-name">${p.name || p.ticker}</div>
-          <div class="inv-asset-ticker">${p.ticker} · ${p.account || ''}</div>
+          <div class="inv-asset-name">${isAccount ? (p.account || 'Без счёта') : (p.name || p.ticker)}</div>
+          <div class="inv-asset-ticker">${isAccount ? p.name : p.ticker + ' · ' + (p.account || '')}</div>
         </div>
       </div>
     </td>
@@ -5228,9 +5382,9 @@ const divYieldStr = divYield > 0 ? '+' + divYield.toFixed(2) + '%' : '—';
     <td>${investedStr}</td>
     <td>${currentStr}</td>
     <td class="${percentClass}">${percentSign}${percent.toFixed(2)}%</td>
-  <td>${payoutsStr}</td>
-  <td style="color:var(--accent);font-weight:600">${divYieldStr}</td>
-  <td class="${profitClass}">${profitSign}${fmt(profit)}</td>
+    <td>${payoutsStr}</td>
+    <td style="color:var(--accent);font-weight:600">${divYieldStr}</td>
+    <td class="${profitClass}">${profitSign}${fmt(profit)}</td>
     <td>
       <span class="inv-share-bar" style="width:${barWidth}px"></span>${shareStr}
     </td>
