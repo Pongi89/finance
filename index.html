@@ -5758,8 +5758,9 @@ const topEl = document.getElementById('inv-top-positions');
   '<th>Тек. цена</th>' +
   '<th>Δ%</th>' +
   '<th>Δ ₽</th>' +
-  '<th title="Всего получено за всё время: дивиденды (акции) и купоны (облигации). Амортизации не учитываются — это возврат номинала.">💰 Выплаты всего</th>' +
-  '<th title="Сколько акций уже полностью окупились дивидендами">🎁 Бесплатных</th>' +
+  '<th title="Годовая доходность (XIRR) с учётом дат покупок и выплат">📈 Годовая %</th>' +
+  '<th title="...">💰 Выплаты всего</th>' +
+  '<th title="...">🎁 Бесплатных</th>' +
   '</tr></thead><tbody>';
   
   sorted.forEach(p => {
@@ -5817,6 +5818,11 @@ const allPayouts = (p.totalDividends || 0) + (p.totalCoupons || 0);
 const allPayoutsStr = allPayouts > 0 ? fmt(allPayouts) : '—';
 const allPayoutsCls = allPayouts > 0 ? 'c-income' : '';
 
+// ✅ XIRR
+const xirrVal = p.xirr !== null && p.xirr !== undefined ? p.xirr : null;
+const xirrStr = xirrVal !== null ? (xirrVal >= 0 ? '+' : '') + xirrVal.toFixed(2) + '%' : '—';
+const xirrCls = xirrVal === null ? 'c-muted' : (xirrVal > 0 ? 'c-income' : xirrVal < 0 ? 'c-expense' : '');
+
 html += `<tr>
   <td><strong>${p.ticker}</strong></td>
   <td>${p.quantity}</td>
@@ -5824,6 +5830,7 @@ html += `<tr>
   <td>${curPriceStr}</td>
   <td class="${diffCls}" style="font-weight:600">${diffPctStr}</td>
   <td class="${diffCls}" style="font-weight:600">${diffRubStr}</td>
+  <td class="${xirrCls}" style="font-weight:600">${xirrStr}</td>
   <td class="${allPayoutsCls}" style="font-weight:600">${allPayoutsStr}</td>
   <td class="${freeCls}" style="font-weight:600">${freeStr}</td>
 </tr>`;
