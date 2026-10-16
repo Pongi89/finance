@@ -2086,8 +2086,14 @@ async function apiGet(params) {
   const url = new URL(S.apiUrl);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
   
-  const cacheKey = 'cache_' + params.action;
-  const cached = localStorage.getItem(cacheKey);
+   let cacheKey = 'cache_' + params.action;
+  if (params.action === 'getTickerHistory' || params.action === 'getIndexHistory') {
+    const ticker = params.ticker || params.index || '';
+    const from = params.from || '';
+    const to = params.to || '';
+    cacheKey = `cache_${params.action}_${ticker}_${from}_${to}`;
+  }
+   const cached = localStorage.getItem(cacheKey);
   
   // ✅ Для инвестиций — TTL 30 минут, для остальных — 5 минут
   const ttl = (params.action === 'calcPortfolio' || params.action === 'getInvestments')
