@@ -7262,61 +7262,71 @@ function getBenchmarkCutoff() {
 }
 
 async function calcPortfolioHistory() {
-  // Нужны все операции (сделки) + текущий портфель
   if (!S.invOperations || !S.invOperations.length) {
     await loadInvestments(true);
   }
   const ops = S.invOperations || [];
   
-  // Берём только сделки (buy/sell) — dividend/coupon не влияют на количество
-  const trades = ops.filter(o => o.type === 'buy' || o.type === 'sell');
+  // ✅ Берём только активные тикеры из портфеля
+  const portfolio = await loadPortfolio();
+  const activeTickers = new Set((portfolio.positions || []).map(p => p.ticker));
+  console.log('Активных тикеров:', activeTickers.size);
+  
+  const trades = ops.filter(o => 
+    (o.type === 'buy' || o.type === 'sell') && 
+    activeTickers.has(o.ticker)
+  );
   
   if (!trades.length) return [];
-  
-  // Сортируем по дате
   trades.sort((a, b) => a.date.localeCompare(b.date));
   
-  // Уникальные тикеры
   const tickers = [...new Set(trades.map(o => o.ticker))];
+  console.log('Загружаем истории для', tickers.length, 'тикеров...');
   
-  // Загружаем историю цен по каждому тикеру
+  // ✅ Параллельная загрузка — по 5 штук за раз
   const histories = {};
-  for (const ticker of tickers) {
-    // Находим asset_type из первой сделки
-    const sample = trades.find(o => o.ticker === ticker);
-    try {
-      const r = await apiGet({
-        action: 'getTickerHistory',
-        ticker: ticker,
-        asset_type: sample.asset_type || 'stock',
-        from: '2019-01-01',
-        to: new Date().toISOString().substring(0, 10)
-      });
-      histories[ticker] = (r.data || []).map(h => ({ date: h.date, price: h.price }));
-    } catch(e) {
-      console.warn('Не загрузилась история для', ticker, e);
-      histories[ticker] = [];
-    }
+  const BATCH = 5;
+  
+  for (let i = 0; i < tickers.length; i += BATCH) {
+    const batch = tickers.slice(i, i + BATCH);
+    console.log(`📥 Батч ${Math.floor(i/BATCH)+1}/${Math.ceil(tickers.length/BATCH)}: ${batch.join(', ')}`);
+    
+    await Promise.all(batch.map(async (ticker) => {
+      const sample = trades.find(o => o.ticker === ticker);
+      try {
+        const r = await apiGet({
+          action: 'getTickerHistory',
+          ticker,
+          asset_type: sample.asset_type || 'stock',
+          from: '2019-01-01',
+          to: new Date().toISOString().substring(0, 10)
+        });
+        histories[ticker] = (r.data || []).map(h => ({ date: h.date, price: h.price }));
+      } catch(e) {
+        console.warn('Не загрузилась история для', ticker, e);
+        histories[ticker] = [];
+      }
+    }));
   }
   
-  // Определяем период: от первой сделки до сегодня
+  console.log('✅ Все истории загружены');
+  
+  // Дальше — как было, но с курсами ЦБ для валютных облигаций
+  const CBR_RATES = { USD: 80, EUR: 90, CNY: 11, USDT: 80, USDS: 80 };
+  
   const firstDate = trades[0].date;
   const lastDate = new Date().toISOString().substring(0, 10);
   
-  // Все даты, которые есть хоть в одной истории
   const allDateSet = new Set();
   Object.values(histories).forEach(arr => arr.forEach(h => allDateSet.add(h.date)));
   const dates = [...allDateSet].filter(d => d >= firstDate && d <= lastDate).sort();
-  
   if (!dates.length) return [];
   
-  // Индекс цен: для каждого тикера — Map<date, price> + отсортированные даты
   const priceIndex = {};
   for (const ticker of tickers) {
-    priceIndex[ticker] = histories[ticker].map(h => ({ date: h.date, price: h.price }));
+    priceIndex[ticker] = histories[ticker];
   }
   
-  // Функция «последняя цена <= date»
   const getPrice = (ticker, date) => {
     const arr = priceIndex[ticker];
     if (!arr || !arr.length) return null;
@@ -7327,41 +7337,28 @@ async function calcPortfolioHistory() {
     return result;
   };
   
-  // Идём по датам, накапливаем количество и вложенный капитал
-  // На старте ничего нет
-  const qtys = {};        // тикер → количество
-  const invested = {};    // тикер → сколько вложено (сумма покупок минус продажи)
-  const boughtAt = {};    // тикер → массив сделок для обработки
-  
+  const qtys = {}, invested = {}, boughtAt = {}, tradePtr = {};
   for (const t of tickers) {
     qtys[t] = 0;
     invested[t] = 0;
     boughtAt[t] = trades.filter(o => o.ticker === t);
+    tradePtr[t] = 0;
   }
-  
-  // Указатель на следующую сделку по каждому тикеру
-  const tradePtr = {};
-  for (const t of tickers) tradePtr[t] = 0;
   
   const result = [];
   
   for (const date of dates) {
-    // Применяем все сделки, которые произошли <= date
     for (const ticker of tickers) {
       const arr = boughtAt[ticker];
       while (tradePtr[ticker] < arr.length && arr[tradePtr[ticker]].date <= date) {
         const op = arr[tradePtr[ticker]];
         if (op.type === 'buy') {
           qtys[ticker] += op.quantity;
-          // Вложено — сумма в рублях (amount_rub или amount)
           invested[ticker] += (op.amount_rub || op.amount || 0);
-        } else if (op.type === 'sell') {
-          // Продажа уменьшает количество и «высвобождает» деньги
-          // Пропорционально списываем из invested (средняя себестоимость)
+        } else {
           const sellQty = op.quantity;
           const avgCost = qtys[ticker] > 0 ? invested[ticker] / qtys[ticker] : 0;
           const releasedCost = avgCost * sellQty;
-          
           qtys[ticker] = Math.max(0, qtys[ticker] - sellQty);
           invested[ticker] = Math.max(0, invested[ticker] - releasedCost);
         }
@@ -7369,20 +7366,29 @@ async function calcPortfolioHistory() {
       }
     }
     
-    // Считаем стоимость портфеля на эту дату
     let marketValue = 0;
     let investedTotal = 0;
     
     for (const ticker of tickers) {
       if (qtys[ticker] <= 0) continue;
-      
       const price = getPrice(ticker, date);
       if (price === null) continue;
       
-      // Для облигаций цена в % от номинала
       const sample = trades.find(o => o.ticker === ticker);
+      const isCurrencyBond = sample.asset_type === 'currency_bond';
       const isBond = ['bond', 'currency_bond'].includes(sample.asset_type);
-      const priceRub = isBond ? (price / 100 * (sample.face_value || 1000)) : price;
+      const faceValue = sample.face_value || 1000;
+      
+      let priceRub;
+      if (isCurrencyBond) {
+        const currency = sample.currency || 'USD';
+        const rate = CBR_RATES[currency] || 80;
+        priceRub = (price / 100) * faceValue * rate;
+      } else if (isBond) {
+        priceRub = (price / 100) * faceValue;
+      } else {
+        priceRub = price;
+      }
       
       marketValue += qtys[ticker] * priceRub;
       investedTotal += invested[ticker];
@@ -7400,6 +7406,7 @@ async function calcPortfolioHistory() {
   
   return result;
 }
+  
 async function loadIndexHistory(indexCode) {
   try {
     const r = await apiGet({
