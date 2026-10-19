@@ -7236,8 +7236,10 @@ async function renderBenchmark() {
   const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
   
   // Проценты возврата
-  const pfReturn = pfStart > 0 ? ((pfEnd - pfStart) / pfStart) * 100 : 0;
-  const ixReturn = ixStart > 0 ? ((ixEnd - ixStart) / ixStart) * 100 : 0;
+   // ✅ Проценты — оба от суммы вложенного (не от стартовой стоимости)
+  const pfInvested = alignedPf[alignedPf.length - 1].invested || 0;
+  const pfReturn = pfInvested > 0 ? ((pfEnd - pfInvested) / pfInvested) * 100 : 0;
+  const ixReturn = pfInvested > 0 ? ((ixEnd - pfInvested) / pfInvested) * 100 : 0;
   
   // XIRR
   const portfolioXirr = calcBenchmarkXirr(alignedPf, 'portfolio');
