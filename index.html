@@ -7184,14 +7184,49 @@ async function renderBenchmark() {
     return;
   }
   
-  // Индексный эквивалент — сколько стоил бы портфель, если бы ты купил MCFTR на старте
-  const pfStart = alignedPf[0].value;
-  const ixStart = alignedIx[0].value;
+    // ✅ Индексный эквивалент с учётом всех пополнений и выводов
+  // Для каждого cashflow: (amount) × (MCFTR_сегодня / MCFTR_на_дату_вложения)
   
-  const indexEquivalent = alignedIx.map(p => ({
-    date: p.date,
-    value: pfStart * (p.value / ixStart)
-  }));
+  // 1. Собираем все cashflow (buy = +investment, sell = -withdrawal)
+  const cashflows = [];
+  const inv = S.invOperations || [];
+  inv.filter(o => o.type === 'buy' || o.type === 'sell').forEach(op => {
+    const amt = op.amount_rub || op.amount || 0;
+    if (!amt) return;
+    cashflows.push({
+      date: op.date,
+      amount: op.type === 'buy' ? amt : -amt,
+    });
+  });
+  
+  // 2. Функция MCFTR на дату (forward fill из alignedIx)
+  const getIndexPrice = (date) => {
+    let last = null;
+    for (const p of alignedIx) {
+      if (p.date <= date) last = p.value;
+      else break;
+    }
+    return last;
+  };
+  
+  // 3. Индексный эквивалент на каждую дату в alignedPf
+  const todayIx = alignedIx[alignedIx.length - 1].value;
+  const indexEquivalent = alignedPf.map(pfPoint => {
+    const date = pfPoint.date;
+    const ixToday = getIndexPrice(date);
+    
+    // Суммируем все cashflow до этой даты, переоценённые в индексе
+    let totalInIndex = 0;
+    for (const cf of cashflows) {
+      if (cf.date > date) break;
+      const ixAtCf = getIndexPrice(cf.date);
+      if (!ixAtCf) continue;
+      // cf.amount вложено в дату cf.date, к date оно выросло в ixToday/ixAtCf раз
+      totalInIndex += cf.amount * (ixToday / ixAtCf);
+    }
+    
+    return { date, value: totalInIndex };
+  });
   
   // Итоги в рублях
   const pfEnd = alignedPf[alignedPf.length - 1].value;
@@ -7206,7 +7241,7 @@ async function renderBenchmark() {
   
   // XIRR
   const portfolioXirr = calcBenchmarkXirr(alignedPf, 'portfolio');
-  const indexXirr = calcBenchmarkXirr(alignedIx, 'index');
+  const indexXirr = calcBenchmarkXirr(indexEquivalent, 'portfolio');  // ✅ тот же метод
   
   const diffSign = diffRub >= 0 ? '+' : '';
   const diffColor = diffRub >= 0 ? 'c-income' : 'c-expense';
@@ -7406,22 +7441,38 @@ async function loadIndexHistory(indexCode) {
 }
 
 function calcBenchmarkXirr(series, type) {
-  // Для графика (type='portfolio'): cashflows = [-valueStart, ..., +valueEnd]
-  // Для индекса — то же
-  if (series.length < 2) return null;
+  // XIRR для портфеля — все cashflow (buy/sell) + финальная стоимость
+  if (type === 'portfolio') {
+    const inv = S.invOperations || [];
+    const cashflows = [];
+    
+    // Все сделки
+    inv.filter(o => o.type === 'buy' || o.type === 'sell').forEach(op => {
+      const amt = op.amount_rub || op.amount || 0;
+      if (!amt) return;
+      cashflows.push({
+        date: op.date,
+        amount: op.type === 'buy' ? -amt : amt,
+      });
+    });
+    
+    // Финальная стоимость портфеля
+    if (series.length > 0) {
+      const last = series[series.length - 1];
+      cashflows.push({ date: last.date, amount: last.value });
+    }
+    
+    return calcXIRR(cashflows);
+  }
   
+  // Для индекса — то же самое, но по "виртуальному" портфелю в индексе
+  if (series.length < 2) return null;
   const first = series[0];
   const last = series[series.length - 1];
-  
-  const startValue = type === 'portfolio' ? first.value : first.price;
-  const endValue = type === 'portfolio' ? last.value : last.price;
-  
-  const flows = [
-    { date: first.date, amount: -startValue },
-    { date: last.date, amount: endValue }
-  ];
-  
-  return calcXIRR(flows);
+  return calcXIRR([
+    { date: first.date, amount: -first.price },
+    { date: last.date, amount: last.price }
+  ]);
 }
 
 function renderBenchmarkChartInRubles(portfolioData, indexEquivalent, indexName) {
