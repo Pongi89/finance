@@ -2086,58 +2086,61 @@ async function apiGet(params) {
   const url = new URL(S.apiUrl);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
   
-   let cacheKey = 'cache_' + params.action;
-  if (params.action === 'getTickerHistory' || params.action === 'getIndexHistory') {
+  // ✅ Уникальный ключ кэша
+  let cacheKey = 'cache_' + params.action;
+  const isHistory = (params.action === 'getTickerHistory' || params.action === 'getIndexHistory');
+  if (isHistory) {
     const ticker = params.ticker || params.index || '';
     const from = params.from || '';
     const to = params.to || '';
     cacheKey = `cache_${params.action}_${ticker}_${from}_${to}`;
   }
-   let cached = null;
-if (params.action === 'getTickerHistory' || params.action === 'getIndexHistory') {
-  // Для истории — сначала память, потом localStorage
-  if (window._memoryCache && window._memoryCache[cacheKey]) {
-    cached = JSON.stringify(window._memoryCache[cacheKey]);
+  
+  // ✅ Для истории — кэш в памяти, для остального — localStorage
+  let cached = null;
+  if (isHistory) {
+    if (window._memoryCache && window._memoryCache[cacheKey]) {
+      cached = JSON.stringify(window._memoryCache[cacheKey]);
+    }
   } else {
     cached = localStorage.getItem(cacheKey);
   }
-} else {
-  cached = localStorage.getItem(cacheKey);
-}
   
-  // ✅ Для инвестиций — TTL 30 минут, для остальных — 5 минут
   const ttl = (params.action === 'calcPortfolio' || params.action === 'getInvestments')
     ? 30 * 60 * 1000
     : CACHE_TTL;
   
-  // Если есть кэш и он свежий — возвращаем мгновенно
+  // ✅ Проверка кэша
   if (cached) {
     try {
       const data = JSON.parse(cached);
       if (Date.now() - data.timestamp < ttl) {
-        // ✅ Проверяем, что кэш не пустой и имеет актуальную структуру
-const hasData = (data.data?.data?.length > 0) || 
-                (data.data?.positions?.length > 0) ||
-                (data.data?.totals);
-
-// ✅ Для calcPortfolio проверяем наличие closedPositions
-const needsClosedPositions = params.action === 'calcPortfolio';
-const hasClosedPositions = data.data?.closedPositions !== undefined;
-
-if (hasData && (!needsClosedPositions || hasClosedPositions)) {
-  console.log(`📦 Кэш для ${params.action}`);
-  return data.data;
-} else {
-  console.log(`⚠️ Кэш устарел (нужен closedPositions), удаляем`);
-  localStorage.removeItem(cacheKey);
-}
+        // Для calcPortfolio — нужен closedPositions
+        if (params.action === 'calcPortfolio') {
+          if (data.data && data.data.closedPositions !== undefined && data.data.positions) {
+            console.log(`📦 Кэш для ${params.action}`);
+            return data.data;
+          }
+          console.log(`⚠️ calcPortfolio кэш без closedPositions, удаляем`);
+          localStorage.removeItem(cacheKey);
+        } else {
+          // Для всех остальных — просто вернуть, если не ошибка
+          if (data.data && !data.data.error) {
+            console.log(`📦 Кэш для ${params.action}`);
+            return data.data;
+          }
+          console.log(`⚠️ Кэш с ошибкой для ${params.action}, удаляем`);
+          if (isHistory) delete window._memoryCache[cacheKey];
+          else localStorage.removeItem(cacheKey);
+        }
       }
     } catch(e) {
-      localStorage.removeItem(cacheKey);
+      if (isHistory) delete window._memoryCache[cacheKey];
+      else localStorage.removeItem(cacheKey);
     }
   }
   
-  // ✅ Ретраи: 3 попытки с паузой
+  // Запрос с ретраями
   const maxAttempts = 3;
   let lastError = null;
   
@@ -2148,53 +2151,41 @@ if (hasData && (!needsClosedPositions || hasClosedPositions)) {
       
       const json = await res.json();
       
-      // ✅ Сохраняем в кэш ЛЮБОЙ успешный ответ
-     // ✅ Для getTickerHistory/getIndexHistory — кэш только в памяти, не в localStorage
-if (params.action === 'getTickerHistory' || params.action === 'getIndexHistory') {
-  if (!window._memoryCache) window._memoryCache = {};
-  window._memoryCache[cacheKey] = {
-    timestamp: Date.now(),
-    data: json
-  };
-  const count = json.data?.length ?? '—';
-  console.log(`💾 Кэш (в памяти) для ${params.action}: ${count}`);
-} else {
-  // Остальное — в localStorage, там маленькие ответы
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify({
-      timestamp: Date.now(),
-      data: json
-    }));
-    const count = json.data?.length ?? (json.positions?.length ?? '—');
-    console.log(`💾 Кэш сохранён для ${params.action}: ${count}`);
-  } catch(e) {
-    console.warn(`⚠️ Не удалось сохранить кэш для ${params.action}:`, e);
-  }
-}
+      // ✅ Сохраняем в кэш только не-error
+      if (!json.error) {
+        if (isHistory) {
+          if (!window._memoryCache) window._memoryCache = {};
+          window._memoryCache[cacheKey] = { timestamp: Date.now(), data: json };
+          console.log(`💾 Кэш (в памяти) для ${params.action}: ${json.data?.length ?? '—'}`);
+        } else {
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: json }));
+            console.log(`💾 Кэш сохранён для ${params.action}: ${json.data?.length ?? '—'}`);
+          } catch(e) {
+            console.warn(`⚠️ Не удалось сохранить кэш для ${params.action}:`, e);
+          }
+        }
+      } else {
+        console.warn(`⚠️ Ошибка от Apps Script для ${params.action}: ${json.error}`);
+      }
       
       return json;
-      
     } catch(e) {
       lastError = e;
       console.warn(`⚠️ Попытка ${attempt}/${maxAttempts} для ${params.action} — ${e.message}`);
-      
-      if (attempt < maxAttempts) {
-        await sleep(1000 * attempt); // 1 сек, 2 сек
-      }
+      if (attempt < maxAttempts) await sleep(1000 * attempt);
     }
   }
   
-  // Все попытки провалились — используем старый кэш
+  // Все попытки провалились — старый кэш
   if (cached) {
     try {
       const data = JSON.parse(cached);
-      if (data.data && data.data.data && data.data.data.length > 0) {
-        console.warn(`⚠️ Все попытки провалились, используем старый кэш для ${params.action}`);
+      if (data.data && !data.data.error) {
+        console.warn(`⚠️ Используем старый кэш для ${params.action}`);
         return data.data;
       }
-    } catch(e2) {
-      localStorage.removeItem(cacheKey);
-    }
+    } catch(e2) {}
   }
   
   const msg = lastError?.message || 'Ошибка запроса';
