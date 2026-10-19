@@ -2093,7 +2093,17 @@ async function apiGet(params) {
     const to = params.to || '';
     cacheKey = `cache_${params.action}_${ticker}_${from}_${to}`;
   }
-   const cached = localStorage.getItem(cacheKey);
+   let cached = null;
+if (params.action === 'getTickerHistory' || params.action === 'getIndexHistory') {
+  // Для истории — сначала память, потом localStorage
+  if (window._memoryCache && window._memoryCache[cacheKey]) {
+    cached = JSON.stringify(window._memoryCache[cacheKey]);
+  } else {
+    cached = localStorage.getItem(cacheKey);
+  }
+} else {
+  cached = localStorage.getItem(cacheKey);
+}
   
   // ✅ Для инвестиций — TTL 30 минут, для остальных — 5 минут
   const ttl = (params.action === 'calcPortfolio' || params.action === 'getInvestments')
@@ -2139,16 +2149,28 @@ if (hasData && (!needsClosedPositions || hasClosedPositions)) {
       const json = await res.json();
       
       // ✅ Сохраняем в кэш ЛЮБОЙ успешный ответ
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({
-          timestamp: Date.now(),
-          data: json
-        }));
-        const count = json.data?.length ?? (json.positions?.length ?? '—');
-        console.log(`💾 Кэш сохранён для ${params.action}: ${count}`);
-      } catch(e) {
-        console.warn(`⚠️ Не удалось сохранить кэш для ${params.action}:`, e);
-      }
+     // ✅ Для getTickerHistory/getIndexHistory — кэш только в памяти, не в localStorage
+if (params.action === 'getTickerHistory' || params.action === 'getIndexHistory') {
+  if (!window._memoryCache) window._memoryCache = {};
+  window._memoryCache[cacheKey] = {
+    timestamp: Date.now(),
+    data: json
+  };
+  const count = json.data?.length ?? '—';
+  console.log(`💾 Кэш (в памяти) для ${params.action}: ${count}`);
+} else {
+  // Остальное — в localStorage, там маленькие ответы
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({
+      timestamp: Date.now(),
+      data: json
+    }));
+    const count = json.data?.length ?? (json.positions?.length ?? '—');
+    console.log(`💾 Кэш сохранён для ${params.action}: ${count}`);
+  } catch(e) {
+    console.warn(`⚠️ Не удалось сохранить кэш для ${params.action}:`, e);
+  }
+}
       
       return json;
       
