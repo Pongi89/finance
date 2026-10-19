@@ -7267,15 +7267,8 @@ async function calcPortfolioHistory() {
   }
   const ops = S.invOperations || [];
   
-  // ✅ Берём только активные тикеры из портфеля
-  const portfolio = await loadPortfolio();
-  const activeTickers = new Set((portfolio.positions || []).map(p => p.ticker));
-  console.log('Активных тикеров:', activeTickers.size);
-  
-  const trades = ops.filter(o => 
-    (o.type === 'buy' || o.type === 'sell') && 
-    activeTickers.has(o.ticker)
-  );
+  // ✅ Все сделки, без фильтра по портфелю
+  const trades = ops.filter(o => o.type === 'buy' || o.type === 'sell');
   
   if (!trades.length) return [];
   trades.sort((a, b) => a.date.localeCompare(b.date));
@@ -7283,13 +7276,13 @@ async function calcPortfolioHistory() {
   const tickers = [...new Set(trades.map(o => o.ticker))];
   console.log('Загружаем истории для', tickers.length, 'тикеров...');
   
-  // ✅ Параллельная загрузка — по 5 штук за раз
+  // Параллельная загрузка по 5 штук
   const histories = {};
   const BATCH = 5;
   
   for (let i = 0; i < tickers.length; i += BATCH) {
     const batch = tickers.slice(i, i + BATCH);
-    console.log(`📥 Батч ${Math.floor(i/BATCH)+1}/${Math.ceil(tickers.length/BATCH)}: ${batch.join(', ')}`);
+    console.log(`📥 Батч ${Math.floor(i/BATCH)+1}/${Math.ceil(tickers.length/BATCH)}`);
     
     await Promise.all(batch.map(async (ticker) => {
       const sample = trades.find(o => o.ticker === ticker);
@@ -7311,101 +7304,7 @@ async function calcPortfolioHistory() {
   
   console.log('✅ Все истории загружены');
   
-  // Дальше — как было, но с курсами ЦБ для валютных облигаций
-  const CBR_RATES = { USD: 80, EUR: 90, CNY: 11, USDT: 80, USDS: 80 };
-  
-  const firstDate = trades[0].date;
-  const lastDate = new Date().toISOString().substring(0, 10);
-  
-  const allDateSet = new Set();
-  Object.values(histories).forEach(arr => arr.forEach(h => allDateSet.add(h.date)));
-  const dates = [...allDateSet].filter(d => d >= firstDate && d <= lastDate).sort();
-  if (!dates.length) return [];
-  
-  const priceIndex = {};
-  for (const ticker of tickers) {
-    priceIndex[ticker] = histories[ticker];
-  }
-  
-  const getPrice = (ticker, date) => {
-    const arr = priceIndex[ticker];
-    if (!arr || !arr.length) return null;
-    let result = null;
-    for (let i = arr.length - 1; i >= 0; i--) {
-      if (arr[i].date <= date) { result = arr[i].price; break; }
-    }
-    return result;
-  };
-  
-  const qtys = {}, invested = {}, boughtAt = {}, tradePtr = {};
-  for (const t of tickers) {
-    qtys[t] = 0;
-    invested[t] = 0;
-    boughtAt[t] = trades.filter(o => o.ticker === t);
-    tradePtr[t] = 0;
-  }
-  
-  const result = [];
-  
-  for (const date of dates) {
-    for (const ticker of tickers) {
-      const arr = boughtAt[ticker];
-      while (tradePtr[ticker] < arr.length && arr[tradePtr[ticker]].date <= date) {
-        const op = arr[tradePtr[ticker]];
-        if (op.type === 'buy') {
-          qtys[ticker] += op.quantity;
-          invested[ticker] += (op.amount_rub || op.amount || 0);
-        } else {
-          const sellQty = op.quantity;
-          const avgCost = qtys[ticker] > 0 ? invested[ticker] / qtys[ticker] : 0;
-          const releasedCost = avgCost * sellQty;
-          qtys[ticker] = Math.max(0, qtys[ticker] - sellQty);
-          invested[ticker] = Math.max(0, invested[ticker] - releasedCost);
-        }
-        tradePtr[ticker]++;
-      }
-    }
-    
-    let marketValue = 0;
-    let investedTotal = 0;
-    
-    for (const ticker of tickers) {
-      if (qtys[ticker] <= 0) continue;
-      const price = getPrice(ticker, date);
-      if (price === null) continue;
-      
-      const sample = trades.find(o => o.ticker === ticker);
-      const isCurrencyBond = sample.asset_type === 'currency_bond';
-      const isBond = ['bond', 'currency_bond'].includes(sample.asset_type);
-      const faceValue = sample.face_value || 1000;
-      
-      let priceRub;
-      if (isCurrencyBond) {
-        const currency = sample.currency || 'USD';
-        const rate = CBR_RATES[currency] || 80;
-        priceRub = (price / 100) * faceValue * rate;
-      } else if (isBond) {
-        priceRub = (price / 100) * faceValue;
-      } else {
-        priceRub = price;
-      }
-      
-      marketValue += qtys[ticker] * priceRub;
-      investedTotal += invested[ticker];
-    }
-    
-    if (marketValue > 0 || investedTotal > 0) {
-      result.push({
-        date,
-        value: Math.round(marketValue * 100) / 100,
-        invested: Math.round(investedTotal * 100) / 100,
-        profit: Math.round((marketValue - investedTotal) * 100) / 100
-      });
-    }
-  }
-  
-  return result;
-}
+  // ... дальше всё как было
   
 async function loadIndexHistory(indexCode) {
   try {
