@@ -7187,7 +7187,7 @@ async function renderBenchmark() {
     // ✅ Индексный эквивалент с учётом всех пополнений и выводов
   // Для каждого cashflow: (amount) × (MCFTR_сегодня / MCFTR_на_дату_вложения)
   
-  // 1. Собираем все cashflow (buy = +investment, sell = -withdrawal)
+   // 1. Собираем все cashflow и СОРТИРУЕМ по дате
   const cashflows = [];
   const inv = S.invOperations || [];
   inv.filter(o => o.type === 'buy' || o.type === 'sell').forEach(op => {
@@ -7198,8 +7198,10 @@ async function renderBenchmark() {
       amount: op.type === 'buy' ? amt : -amt,
     });
   });
+  // ✅ КРИТИЧНО: сортировка по дате
+  cashflows.sort((a, b) => a.date.localeCompare(b.date));
   
-  // 2. Функция MCFTR на дату (forward fill из alignedIx)
+  // 2. Функция MCFTR на дату (forward fill)
   const getIndexPrice = (date) => {
     let last = null;
     for (const p of alignedIx) {
@@ -7209,19 +7211,28 @@ async function renderBenchmark() {
     return last;
   };
   
-  // 3. Индексный эквивалент на каждую дату в alignedPf
+  // ✅ Если дата до первой точки в alignedIx — берём первую доступную (ближайшую)
+  const firstIxDate = alignedIx[0]?.date;
+  const firstIxValue = alignedIx[0]?.value;
+  
+  const getIndexPriceSafe = (date) => {
+    const p = getIndexPrice(date);
+    if (p !== null) return p;
+    // fallback: если дата до начала — берём первую известную цену
+    return firstIxValue || null;
+  };
+  
+  // 3. Индексный эквивалент
   const todayIx = alignedIx[alignedIx.length - 1].value;
   const indexEquivalent = alignedPf.map(pfPoint => {
     const date = pfPoint.date;
-    const ixToday = getIndexPrice(date);
+    const ixToday = getIndexPriceSafe(date);
     
-    // Суммируем все cashflow до этой даты, переоценённые в индексе
     let totalInIndex = 0;
     for (const cf of cashflows) {
       if (cf.date > date) break;
-      const ixAtCf = getIndexPrice(cf.date);
+      const ixAtCf = getIndexPriceSafe(cf.date);
       if (!ixAtCf) continue;
-      // cf.amount вложено в дату cf.date, к date оно выросло в ixToday/ixAtCf раз
       totalInIndex += cf.amount * (ixToday / ixAtCf);
     }
     
