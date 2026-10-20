@@ -7161,72 +7161,51 @@ async function renderBenchmark() {
     return;
   }
 
-  // ✅ НОВАЯ ЛОГИКА СРАВНЕНИЯ
-  // Находим первый день, где есть и портфель, и индекс
-  let startIdx = data.findIndex(d => d.index !== null && d.value > 0);
-  if (startIdx === -1) startIdx = 0;
+  const pfEnd = data[data.length - 1].value;
+  const ixEnd = data[data.length - 1].index_equivalent || 0;
+  const investedEnd = data[data.length - 1].invested || 0;
+  
+  // Абсолютная разница
+  const diffRub = pfEnd - ixEnd;
+  // Процентная разница (насколько портфель обогнал индекс по деньгам)
+  const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
 
-  const startPoint = data[startIdx];
-  const startValue = startPoint.value;
-  const startIndex = startPoint.index;
-
-  // Преобразуем все точки графика в проценты роста от старта
-  const chartData = data.map(d => {
-    let ixPct = null;
-    if (d.index !== null && startIndex) {
-      ixPct = ((d.index / startIndex) - 1) * 100;
-    }
-    
-    let pfPct = null;
-    if (startValue > 0) {
-      pfPct = ((d.value / startValue) - 1) * 100;
-    }
-
-    return {
-      date: d.date,
-      pfPct: pfPct,
-      ixPct: ixPct,
-      value: d.value,
-      invested: d.invested
-    };
-  });
-
-  const lastPoint = chartData[chartData.length - 1];
-  const diffPct = (lastPoint.pfPct || 0) - (lastPoint.ixPct || 0);
-
-  const diffColor = diffPct >= 0 ? 'c-income' : 'c-expense';
-  const diffWord = diffPct >= 0 ? 'обгоняет' : 'отстаёт от';
+  const diffSign = diffRub >= 0 ? '+' : '';
+  const diffColor = diffRub >= 0 ? 'c-income' : 'c-expense';
+  const diffWord = diffRub >= 0 ? 'обгоняет' : 'отстаёт от';
+  
   const periodLabel = S.benchmarkPeriod === 'all' ? 'всё время' :
                       S.benchmarkPeriod === '1y' ? 'последний год' :
                       S.benchmarkPeriod === '3y' ? 'последние 3 года' : 'последние 5 лет';
 
   statsEl.innerHTML = `
-    <div class="stat-card" style="grid-column:1/-1;background:${diffPct >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffPct >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
+    <div class="stat-card" style="grid-column:1/-1;background:${diffRub >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffRub >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
       <div class="stat-label" style="font-size:12px">🎯 Портфель ${diffWord} ${S.benchmarkIndex}</div>
-      <div class="stat-value ${diffColor}" style="font-size:22px">${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)} п.п.</div>
+      <div class="stat-value ${diffColor}" style="font-size:22px">${diffSign}${fmt(diffRub)} <span style="font-size:16px;font-weight:500;opacity:0.8">(${diffSign}${diffPct.toFixed(2)}%)</span></div>
       <div style="font-size:11px;color:var(--text2);margin-top:4px">за ${periodLabel}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">💼 Портфель</div>
-      <div class="stat-value c-accent" style="font-size:20px">${lastPoint.pfPct >= 0 ? '+' : ''}${lastPoint.pfPct.toFixed(2)}%</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">${fmt(lastPoint.value)}</div>
+      <div class="stat-value c-accent" style="font-size:20px">${fmt(pfEnd)}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">вложено: ${fmt(investedEnd)}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">📊 ${S.benchmarkIndex}</div>
-      <div class="stat-value c-text" style="font-size:20px">${lastPoint.ixPct >= 0 ? '+' : ''}${lastPoint.ixPct.toFixed(2)}%</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">от начала периода</div>
+      <div class="stat-label">📊 ${S.benchmarkIndex} эквивалент</div>
+      <div class="stat-value c-text" style="font-size:20px">${fmt(ixEnd)}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">если бы покупали индекс</div>
     </div>
   `;
 
-  // Рисуем график в процентах
+  // Рисуем график в АБСОЛЮТНЫХ ЦИФРАХ
   const canvas = document.getElementById('chart-benchmark');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (S.benchmarkChart) S.benchmarkChart.destroy();
   
-  const labels = chartData.map(p => p.date);
-  const pfPctValues = chartData.map(p => p.pfPct);
-  const ixPctValues = chartData.map(p => p.ixPct);
+  const labels = data.map(p => p.date);
+  const pfValues = data.map(p => p.value);
+  const ixValues = data.map(p => p.index_equivalent || 0);
+  const investedValues = data.map(p => p.invested || 0);
   
   S.benchmarkChart = new Chart(ctx, {
     type: 'line',
@@ -7235,7 +7214,7 @@ async function renderBenchmark() {
       datasets: [
         {
           label: 'Портфель',
-          data: pfPctValues,
+          data: pfValues,
           borderColor: '#6c63ff',
           backgroundColor: 'rgba(108, 99, 255, 0.1)',
           fill: true,
@@ -7245,7 +7224,7 @@ async function renderBenchmark() {
         },
         {
           label: S.benchmarkIndex,
-          data: ixPctValues,
+          data: ixValues,
           borderColor: '#f6ad55',
           backgroundColor: 'rgba(246, 173, 85, 0.03)',
           fill: false,
@@ -7253,6 +7232,17 @@ async function renderBenchmark() {
           pointRadius: 0,
           borderWidth: 2,
           borderDash: [6, 4],
+        },
+        {
+          label: 'Вложено',
+          data: investedValues,
+          borderColor: '#48bb78',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 1.5,
+          borderDash: [2, 2],
         }
       ]
     },
@@ -7262,22 +7252,11 @@ async function renderBenchmark() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: '#8892a4', font: { size: 12 } } },
-        tooltip: { 
-          callbacks: { 
-            label: (c) => `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(2)}%` 
-          } 
-        }
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } }
       },
       scales: {
         x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: 'rgba(46, 49, 72, 0.3)' } },
-        y: { 
-          ticks: { 
-            color: '#8892a4', 
-            font: { size: 10 }, 
-            callback: v => (v >= 0 ? '+' : '') + v.toFixed(0) + '%' 
-          }, 
-          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
-        }
+        y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
       }
     }
   });
