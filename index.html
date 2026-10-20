@@ -7160,9 +7160,32 @@ async function renderBenchmark() {
     return;
   }
 
-  const pfEnd = data[data.length - 1].value;
-  const ixEnd = data[data.length - 1].index_equivalent || 0;
-  const investedEnd = data[data.length - 1].invested || 0;
+  // ✅ ИЩЕМ ПЕРВУЮ ТОЧКУ, ГДЕ ЕСТЬ И ПОРТФЕЛЬ, И ИНДЕКС
+  let startIdx = data.findIndex(d => d.value > 0 && d.index !== null);
+  if (startIdx === -1) startIdx = 0;
+
+  const startPoint = data[startIdx];
+  const startValue = startPoint.value;
+  const startIndex = startPoint.index;
+
+  // ✅ СТРОИМ ИНДЕКС ОТ НАЧАЛЬНОЙ СТОИМОСТИ ПОРТФЕЛЯ
+  const chartData = data.map(d => {
+    let ixScaled = null;
+    if (d.index !== null && startIndex) {
+      ixScaled = startValue * (d.index / startIndex);
+    }
+    return {
+      date: d.date,
+      pf: d.value,
+      ix: ixScaled,
+      invested: d.invested
+    };
+  });
+
+  const lastPoint = chartData[chartData.length - 1];
+  const pfEnd = lastPoint.pf;
+  const ixEnd = lastPoint.ix || 0;
+  const investedEnd = lastPoint.invested || 0;
   
   const diffRub = pfEnd - ixEnd;
   const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
@@ -7188,33 +7211,62 @@ async function renderBenchmark() {
     <div class="stat-card">
       <div class="stat-label">📊 ${S.benchmarkIndex} эквивалент</div>
       <div class="stat-value c-text" style="font-size:20px">${fmt(ixEnd)}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">если бы покупали индекс</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">если бы купили индекс на старте</div>
     </div>
   `;
 
-  // Рисуем график
   const canvas = document.getElementById('chart-benchmark');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (S.benchmarkChart) S.benchmarkChart.destroy();
-  
-  const labels = data.map(p => p.date);
-  const pfValues = data.map(p => p.value);
-  const ixValues = data.map(p => p.index_equivalent || 0);
-  const investedValues = data.map(p => p.invested || 0);
+
+  const labels = chartData.map(p => p.date);
+  const pfValues = chartData.map(p => p.pf);
+  const ixValues = chartData.map(p => p.ix);
+  const investedValues = chartData.map(p => p.invested);
   
   S.benchmarkChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: labels,
       datasets: [
-        { label: 'Портфель', data: pfValues, borderColor: '#6c63ff', backgroundColor: 'rgba(108, 99, 255, 0.1)', fill: true, tension: 0.2, pointRadius: 0, borderWidth: 2 },
-        { label: S.benchmarkIndex, data: ixValues, borderColor: '#f6ad55', backgroundColor: 'rgba(246, 173, 85, 0.03)', fill: false, tension: 0.2, pointRadius: 0, borderWidth: 2, borderDash: [6, 4] },
-        { label: 'Вложено', data: investedValues, borderColor: '#48bb78', backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.5, borderDash: [2, 2] }
+        {
+          label: 'Портфель',
+          data: pfValues,
+          borderColor: '#6c63ff',
+          backgroundColor: 'rgba(108, 99, 255, 0.1)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: S.benchmarkIndex,
+          data: ixValues,
+          borderColor: '#f6ad55',
+          backgroundColor: 'rgba(246, 173, 85, 0.03)',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderDash: [6, 4],
+        },
+        {
+          label: 'Вложено',
+          data: investedValues,
+          borderColor: '#48bb78',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 1.5,
+          borderDash: [2, 2],
+        }
       ]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true,
+      maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: '#8892a4', font: { size: 12 } } },
@@ -7227,7 +7279,6 @@ async function renderBenchmark() {
     }
   });
 
-  // ✅ Заполняем таблицу по годам
   const yearly = res.yearly || [];
   const tbody = document.getElementById('benchmark-table-body');
   if (tbody) {
