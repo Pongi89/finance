@@ -1,23 +1,27 @@
-name: Test Tinkoff Operations
+name: Tinkoff Sync
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * *' # Запускать каждый день в 12:00 UTC
 
 jobs:
-  test-api:
+  sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Get Operations
-        run: |
-          curl -k -s -X POST "https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.OperationsService/GetOperationsByCursor" \
-          -H "Authorization: Bearer ${{ secrets.TINKOFF_TOKEN }}" \
-          -H "Content-Type: application/json" \
-          -d '{
-            "accountId": "2045349582",
-            "from": "2024-03-01T00:00:00Z",
-            "to": "2024-03-31T23:59:59Z",
-            "limit": 10
-          }' > response.json
-          
-          echo "=== ОТВЕТ ОТ Т-БАНКА ==="
-          cat response.json
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Sync Script
+        env:
+          TINKOFF_TOKEN: ${{ secrets.TINKOFF_TOKEN }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+        run: python sync.py
