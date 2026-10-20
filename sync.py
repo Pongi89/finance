@@ -77,7 +77,8 @@ def main():
     for op in all_ops:
         if op.get('state') != 'OPERATION_STATE_EXECUTED':
             continue
-            
+               # ✅ Пропускаем заблокированные активы
+       if op.get('blocked', False): continue    
         op_type = op.get('type', '')
         
         # Маппинг типов операций
