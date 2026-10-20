@@ -1,7 +1,7 @@
 name: Test Tinkoff API
 
 on:
-  workflow_dispatch: # Это значит, что мы можем запустить его вручную кнопкой
+  workflow_dispatch:
 
 jobs:
   test-api:
@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Test connection
         run: |
-          curl -s -X POST "https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.UsersService/GetAccounts" \
+          curl -k -s -X POST "https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.UsersService/GetAccounts" \
           -H "Authorization: Bearer ${{ secrets.TINKOFF_TOKEN }}" \
           -H "Content-Type: application/json" \
           -d '{}'
