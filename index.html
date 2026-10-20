@@ -1201,8 +1201,8 @@ th.sortable.sorted-desc::after {
   
   <!-- Период -->
   <div class="period-row">
-    <button class="period-btn" onclick="setBenchmarkPeriod('1y',this)">1 год</button>
-    <button class="period-btn active" onclick="setBenchmarkPeriod('3y',this)">3 года</button>
+    <button class="period-btn active" onclick="setBenchmarkPeriod('1y',this)">1 год</button>
+    <button class="period-btn" onclick="setBenchmarkPeriod('3y',this)">3 года</button>
     <button class="period-btn" onclick="setBenchmarkPeriod('5y',this)">5 лет</button>
     <button class="period-btn" onclick="setBenchmarkPeriod('all',this)">Всё время</button>
   </div>
@@ -7119,7 +7119,7 @@ function calcXIRR(cashflows) {
 // СРАВНЕНИЕ С ИНДЕКСОМ
 // ============================================================
 
-S.benchmarkPeriod = '3y';
+S.benchmarkPeriod = '1y';
 S.benchmarkIndex = 'MCFTR';
 S.benchmarkChart = null;
 
@@ -7144,7 +7144,6 @@ async function renderBenchmark() {
 
   const cutoff = getBenchmarkCutoff();
   const today = new Date().toISOString().substring(0, 10);
-
   localStorage.removeItem('cache_getBenchmarkData');
 
   let res;
@@ -7165,11 +7164,8 @@ async function renderBenchmark() {
   const ixEnd = data[data.length - 1].index_equivalent || 0;
   const investedEnd = data[data.length - 1].invested || 0;
   
-  // Абсолютная разница
   const diffRub = pfEnd - ixEnd;
-  // Процентная разница (насколько портфель обогнал индекс по деньгам)
   const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
-
   const diffSign = diffRub >= 0 ? '+' : '';
   const diffColor = diffRub >= 0 ? 'c-income' : 'c-expense';
   const diffWord = diffRub >= 0 ? 'обгоняет' : 'отстаёт от';
@@ -7196,7 +7192,7 @@ async function renderBenchmark() {
     </div>
   `;
 
-  // Рисуем график в АБСОЛЮТНЫХ ЦИФРАХ
+  // Рисуем график
   const canvas = document.getElementById('chart-benchmark');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -7212,43 +7208,13 @@ async function renderBenchmark() {
     data: {
       labels: labels,
       datasets: [
-        {
-          label: 'Портфель',
-          data: pfValues,
-          borderColor: '#6c63ff',
-          backgroundColor: 'rgba(108, 99, 255, 0.1)',
-          fill: true,
-          tension: 0.2,
-          pointRadius: 0,
-          borderWidth: 2,
-        },
-        {
-          label: S.benchmarkIndex,
-          data: ixValues,
-          borderColor: '#f6ad55',
-          backgroundColor: 'rgba(246, 173, 85, 0.03)',
-          fill: false,
-          tension: 0.2,
-          pointRadius: 0,
-          borderWidth: 2,
-          borderDash: [6, 4],
-        },
-        {
-          label: 'Вложено',
-          data: investedValues,
-          borderColor: '#48bb78',
-          backgroundColor: 'transparent',
-          fill: false,
-          tension: 0.2,
-          pointRadius: 0,
-          borderWidth: 1.5,
-          borderDash: [2, 2],
-        }
+        { label: 'Портфель', data: pfValues, borderColor: '#6c63ff', backgroundColor: 'rgba(108, 99, 255, 0.1)', fill: true, tension: 0.2, pointRadius: 0, borderWidth: 2 },
+        { label: S.benchmarkIndex, data: ixValues, borderColor: '#f6ad55', backgroundColor: 'rgba(246, 173, 85, 0.03)', fill: false, tension: 0.2, pointRadius: 0, borderWidth: 2, borderDash: [6, 4] },
+        { label: 'Вложено', data: investedValues, borderColor: '#48bb78', backgroundColor: 'transparent', fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.5, borderDash: [2, 2] }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: '#8892a4', font: { size: 12 } } },
@@ -7260,6 +7226,28 @@ async function renderBenchmark() {
       }
     }
   });
+
+  // ✅ Заполняем таблицу по годам
+  const yearly = res.yearly || [];
+  const tbody = document.getElementById('benchmark-table-body');
+  if (tbody) {
+    tbody.innerHTML = yearly.reverse().map(y => {
+      const pfStr = `${y.pfReturn >= 0 ? '+' : ''}${y.pfReturn.toFixed(2)}%`;
+      const ixStr = `${y.ixReturn >= 0 ? '+' : ''}${y.ixReturn.toFixed(2)}%`;
+      const diffStr = `${y.diff >= 0 ? '+' : ''}${y.diff.toFixed(2)} п.п.`;
+      
+      const pfCls = y.pfReturn >= 0 ? 'c-income' : 'c-expense';
+      const ixCls = y.ixReturn >= 0 ? 'c-income' : 'c-expense';
+      const dCls = y.diff >= 0 ? 'c-income' : 'c-expense';
+      
+      return `<tr>
+        <td>${y.year}</td>
+        <td class="${pfCls}">${pfStr}</td>
+        <td class="${ixCls}">${ixStr}</td>
+        <td class="${dCls}" style="font-weight:600">${diffStr}</td>
+      </tr>`;
+    }).join('');
+  }
 }
   
 function getBenchmarkCutoff() {
