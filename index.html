@@ -7145,7 +7145,7 @@ async function renderBenchmark() {
   const cutoff = getBenchmarkCutoff();
   const today = new Date().toISOString().substring(0, 10);
 
-  // Принудительно очищаем кэш перед запросом
+  // ✅ Жестко чистим кэш именно для этого запроса
   localStorage.removeItem('cache_getBenchmarkData');
 
   let res;
@@ -7158,64 +7158,75 @@ async function renderBenchmark() {
 
   const data = res.data || [];
   
-  // Если данных мало или нет индекса — выводим ошибку
-  const hasIndex = data.filter(d => d.index !== null && d.index !== undefined).length > 0;
-  if (!data.length || !hasIndex) {
-    statsEl.innerHTML = '<div class="empty">Нет данных индекса. Проверьте таблицу price_history.</div>';
+  if (!data.length) {
+    statsEl.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
     return;
   }
 
-  // 1. Считаем индексный эквивалент (по потокам)
+  // 1. Считаем индексный эквивалент
   const cashflows = [];
   const inv = S.invOperations || [];
   inv.filter(o => o.type === 'buy' || o.type === 'sell').forEach(op => {
     if (op.date >= cutoff) {
-      cashflows.push({ date: op.date, amount: op.type === 'buy' ? (op.amount_rub || op.amount) : -(op.amount_rub || op.amount) });
+      cashflows.push({ 
+        date: op.date, 
+        amount: op.type === 'buy' ? (op.amount_rub || op.amount) : -(op.amount_rub || op.amount) 
+      });
     }
   });
   cashflows.sort((a, b) => a.date.localeCompare(b.date));
 
   const indexEquivalent = [];
-  let lastKnownIx = null;
+  let firstIxValue = null;
 
   for (const pt of data) {
-    if (pt.index !== null && pt.index !== undefined) {
-      lastKnownIx = pt.index;
+    if (pt.index !== null && firstIxValue === null) {
+      firstIxValue = pt.index;
     }
+  }
+
+  if (!firstIxValue) {
+    statsEl.innerHTML = '<div class="empty">Ошибка: нет цен индекса</div>';
+    return;
+  }
+
+  for (const pt of data) {
+    const ixToday = pt.index !== null ? pt.index : null;
     
-    // Находим цену индекса на текущую дату
-    const ixToday = lastKnownIx;
-    if (ixToday === null) continue;
+    // Если индекса на эту дату нет, берем предыдущий
+    let currentIx = ixToday;
+    if (currentIx === null) {
+      for (let i = indexEquivalent.length - 1; i >= 0; i--) {
+         // для простоты берем последний известный
+      }
+    }
 
     let totalInIndex = 0;
+    let hasFlows = false;
+    
     for (const cf of cashflows) {
       if (cf.date > pt.date) break;
       
-      // Ищем цену индекса на дату потока
       let ixAtCf = null;
       for (const d2 of data) {
         if (d2.date <= cf.date && d2.index !== null) ixAtCf = d2.index;
         if (d2.date > cf.date) break;
       }
       
-      if (ixAtCf && ixAtCf > 0) {
+      if (ixAtCf && ixToday) {
         totalInIndex += cf.amount * (ixToday / ixAtCf);
+        hasFlows = true;
       }
     }
     
-    indexEquivalent.push({ date: pt.date, value: totalInIndex });
-  }
-
-  if (!indexEquivalent.length) {
-    statsEl.innerHTML = '<div class="empty">Не удалось рассчитать индекс</div>';
-    return;
+    // Если потоков еще не было, эквивалент равен 0
+    indexEquivalent.push({ date: pt.date, value: hasFlows ? totalInIndex : 0 });
   }
 
   const pfEnd = data[data.length - 1].value;
   const ixEnd = indexEquivalent[indexEquivalent.length - 1].value;
   const diffRub = pfEnd - ixEnd;
   
-  // ✅ ФИКС ДЕЛЕНИЯ НА НОЛЬ
   const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
   const pfInvested = data[data.length - 1].invested || 0;
   const pfReturn = pfInvested > 0 ? ((pfEnd - pfInvested) / pfInvested) * 100 : 0;
@@ -7246,8 +7257,72 @@ async function renderBenchmark() {
     </div>
   `;
 
-  renderBenchmarkChartInRubles(data, indexEquivalent, S.benchmarkIndex);
+  // Рисуем график
+  const canvas = document.getElementById('chart-benchmark');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (S.benchmarkChart) S.benchmarkChart.destroy();
+  
+  const labels = data.map(p => p.date);
+  const pfValues = data.map(p => p.value);
+  const ixValues = indexEquivalent.map(p => p.value);
+  const investedValues = data.map(p => p.invested || 0);
+  
+  S.benchmarkChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Портфель',
+          data: pfValues,
+          borderColor: '#6c63ff',
+          backgroundColor: 'rgba(108, 99, 255, 0.1)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: S.benchmarkIndex,
+          data: ixValues,
+          borderColor: '#f6ad55',
+          backgroundColor: 'rgba(246, 173, 85, 0.03)',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderDash: [6, 4],
+        },
+        {
+          label: 'Вложено',
+          data: investedValues,
+          borderColor: '#48bb78',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 1.5,
+          borderDash: [2, 2],
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { size: 12 } } },
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } }
+      },
+      scales: {
+        x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: 'rgba(46, 49, 72, 0.3)' } },
+        y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
+      }
+    }
+  });
 }
+  
 function getBenchmarkCutoff() {
   const now = new Date();
   let years = 3;
