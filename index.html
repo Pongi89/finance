@@ -7175,21 +7175,11 @@ async function renderBenchmark() {
                       S.benchmarkPeriod === '1y' ? 'последний год' :
                       S.benchmarkPeriod === '3y' ? 'последние 3 года' : 'последние 5 лет';
 
-  statsEl.innerHTML = `
+    statsEl.innerHTML = `
     <div class="stat-card" style="grid-column:1/-1;background:${diffRub >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffRub >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
       <div class="stat-label" style="font-size:12px">🎯 Портфель ${diffWord} ${S.benchmarkIndex}</div>
       <div class="stat-value ${diffColor}" style="font-size:22px">${diffSign}${fmt(diffRub)} <span style="font-size:16px;font-weight:500;opacity:0.8">(${diffSign}${diffPct.toFixed(2)}%)</span></div>
       <div style="font-size:11px;color:var(--text2);margin-top:4px">за ${periodLabel}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">💼 Портфель</div>
-      <div class="stat-value c-accent" style="font-size:18px;white-space:normal;">${fmt(pfEnd)}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">вложено: ${fmt(investedEnd)}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">📊 ${S.benchmarkIndex}</div>
-      <div class="stat-value c-text" style="font-size:18px;white-space:normal;">${fmt(ixEnd)}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">с учетом пополнений</div>
     </div>
   `;
   
