@@ -3,6 +3,9 @@ import requests
 import json
 import time
 from datetime import datetime, timezone
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 TOKEN = os.environ['TINKOFF_TOKEN']
 APPS_SCRIPT_URL = os.environ['APPS_SCRIPT_URL']
@@ -11,10 +14,6 @@ HEADERS = {
     'Authorization': f'Bearer {TOKEN}',
     'Content-Type': 'application/json'
 }
-
-# Отключаем проверку SSL (сертификат Минцифры)
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def tinkoff_request(method, payload):
     url = f'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.{method}'
@@ -49,7 +48,6 @@ def get_operations(account_id, from_date, to_date):
         if not res.get('hasNext'):
             break
         cursor = res.get('nextCursor')
-
     return operations
 
 def main():
@@ -57,7 +55,6 @@ def main():
     accounts = tinkoff_request('UsersService/GetAccounts', {})['accounts']
     print(f"Найдено счетов: {len(accounts)}")
 
-    # 2. Забираем операции с 2019 года по сегодня
     from_date = "2019-01-01T00:00:00Z"
     to_date = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     
@@ -72,22 +69,31 @@ def main():
 
     print(f"Всего операций получено: {len(all_ops)}")
 
-        # 3. Преобразуем в формат для Apps Script
+    # 3. Преобразуем в формат для Apps Script
     import_data = []
     for op in all_ops:
         if op.get('state') != 'OPERATION_STATE_EXECUTED':
             continue
-               # ✅ Пропускаем заблокированные активы
-       if op.get('blocked', False): continue    
+            
+        # ✅ Пропускаем заблокированные активы (замороженные)
+        if op.get('blocked', False): 
+            continue
+
         op_type = op.get('type', '')
         
         # Маппинг типов операций
-        if 'BUY' in op_type: mapped_type = 'buy'
-        elif 'SELL' in op_type: mapped_type = 'sell'
-        elif 'DIVIDEND' in op_type and 'TAX' not in op_type: mapped_type = 'dividend'
-        elif 'COUPON' in op_type: mapped_type = 'coupon'
-        elif 'TAX' in op_type: continue # Налоги пропускаем (они уменьшают сумму дивидендов)
-        else: continue # пропускаем переводы, ввод/вывод и прочее
+        if 'BUY' in op_type: 
+            mapped_type = 'buy'
+        elif 'SELL' in op_type: 
+            mapped_type = 'sell'
+        elif 'DIVIDEND' in op_type and 'TAX' not in op_type: 
+            mapped_type = 'dividend'
+        elif 'COUPON' in op_type: 
+            mapped_type = 'coupon'
+        elif 'TAX' in op_type: 
+            continue # Налоги пропускаем
+        else: 
+            continue # переводы и прочее
 
         # Маппинг типа актива
         inst_type = op.get('instrumentType', '')
@@ -105,18 +111,14 @@ def main():
         else: 
             asset_type = 'stock'
 
-        # Сумма, цена, количество и комиссия
         payment = parse_quotation(op.get('payment', {}))
         price = parse_quotation(op.get('price', {}))
         commission = parse_quotation(op.get('commission', {}))
         quantity = float(op.get('quantity', 0))
         
-        # Для дивидендов и купонов quantity = 0, сумма = payment (она положительная)
         amount = abs(payment) if mapped_type in ['buy', 'sell'] else payment
-
         date_str = op.get('date', '').split('T')[0]
         
-        # Формируем правильный ID
         raw_id = op.get('id', '')
         formatted_id = f"inv_tinkoff_{raw_id}"
 
@@ -133,7 +135,7 @@ def main():
             "amount": amount,
             "fee": abs(commission),
             "tax": 0,
-            "account": "Т-Банк", # ✅ Единое название счета
+            "account": "Т-Банк",
             "comment": op.get('description', ''),
             "face_value": 1000
         })
@@ -141,7 +143,11 @@ def main():
     # 4. Отправляем в Apps Script
     if import_data:
         print(f"Отправка {len(import_data)} операций в Apps Script...")
-        resp = requests.post(APPS_SCRIPT_URL, json={"action": "importFromTinkoff", "data": import_data})
+        resp = requests.post(
+            APPS_SCRIPT_URL, 
+            json={"action": "importFromTinkoff", "data": import_data},
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
         print("Ответ:", resp.text)
     else:
         print("Нет новых операций для отправки.")
