@@ -7156,14 +7156,27 @@ async function renderBenchmark() {
     return;
   }
 
-  const data = res.data || [];
-  
+   const data = res.data || [];
   if (!data.length) {
     statsEl.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
     return;
   }
 
-  // 1. Считаем индексный эквивалент
+  // 1. Находим текущую (последнюю) цену индекса
+  let currentIx = null;
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i].index !== null && data[i].index !== undefined) {
+      currentIx = data[i].index;
+      break;
+    }
+  }
+
+  if (!currentIx) {
+    statsEl.innerHTML = '<div class="empty">Ошибка: нет цен индекса</div>';
+    return;
+  }
+
+  // 2. Собираем все потоки (покупки/продажи)
   const cashflows = [];
   const inv = S.invOperations || [];
   inv.filter(o => o.type === 'buy' || o.type === 'sell').forEach(op => {
@@ -7176,53 +7189,43 @@ async function renderBenchmark() {
   });
   cashflows.sort((a, b) => a.date.localeCompare(b.date));
 
+  // 3. Считаем индексный эквивалент для каждой даты на графике
   const indexEquivalent = [];
-  let firstIxValue = null;
-
+  
   for (const pt of data) {
-    if (pt.index !== null && firstIxValue === null) {
-      firstIxValue = pt.index;
-    }
-  }
-
-  if (!firstIxValue) {
-    statsEl.innerHTML = '<div class="empty">Ошибка: нет цен индекса</div>';
-    return;
-  }
-
-  for (const pt of data) {
-    const ixToday = pt.index !== null ? pt.index : null;
-    
-    // Если индекса на эту дату нет, берем предыдущий
-    let currentIx = ixToday;
-    if (currentIx === null) {
-      for (let i = indexEquivalent.length - 1; i >= 0; i--) {
-         // для простоты берем последний известный
-      }
-    }
-
     let totalInIndex = 0;
-    let hasFlows = false;
     
     for (const cf of cashflows) {
-      if (cf.date > pt.date) break;
+      if (cf.date > pt.date) break; // берем только потоки до текущей даты графика
       
+      // Ищем цену индекса на дату потока (берем ближайшую слева)
       let ixAtCf = null;
       for (const d2 of data) {
         if (d2.date <= cf.date && d2.index !== null) ixAtCf = d2.index;
         if (d2.date > cf.date) break;
       }
       
-      if (ixAtCf && ixToday) {
-        totalInIndex += cf.amount * (ixToday / ixAtCf);
-        hasFlows = true;
+      if (ixAtCf && ixAtCf > 0) {
+        // Сколько бы эта сумма стоила на текущую дату pt.date
+        const currentIxAtPt = (() => {
+          let ix = null;
+          for (const d3 of data) {
+            if (d3.date <= pt.date && d3.index !== null) ix = d3.index;
+            if (d3.date > pt.date) break;
+          }
+          return ix;
+        })();
+        
+        if (currentIxAtPt) {
+          totalInIndex += cf.amount * (currentIxAtPt / ixAtCf);
+        }
       }
     }
     
-    // Если потоков еще не было, эквивалент равен 0
-    indexEquivalent.push({ date: pt.date, value: hasFlows ? totalInIndex : 0 });
+    indexEquivalent.push({ date: pt.date, value: totalInIndex });
   }
 
+  // 4. Считаем итоговые метрики
   const pfEnd = data[data.length - 1].value;
   const ixEnd = indexEquivalent[indexEquivalent.length - 1].value;
   const diffRub = pfEnd - ixEnd;
@@ -7257,6 +7260,7 @@ async function renderBenchmark() {
     </div>
   `;
 
+  renderBenchmarkChartInRubles(data, indexEquivalent, S.benchmarkIndex);
   // Рисуем график
   const canvas = document.getElementById('chart-benchmark');
   if (!canvas) return;
