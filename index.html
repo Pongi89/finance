@@ -2106,7 +2106,7 @@ async function apiGet(params) {
     cached = localStorage.getItem(cacheKey);
   }
   
-  const ttl = (params.action === 'calcPortfolio' || params.action === 'getInvestments')
+  const ttl = (params.action === 'calcPortfolio' || params.action === 'getInvestments' || params.action === 'getBenchmarkData')
     ? 30 * 60 * 1000
     : CACHE_TTL;
   
@@ -7145,7 +7145,9 @@ async function renderBenchmark() {
   const cutoff = getBenchmarkCutoff();
   const today = new Date().toISOString().substring(0, 10);
 
-  // ✅ БЫСТРЫЙ ЗАПРОС ИЗ БАЗЫ
+  // Принудительно очищаем кэш перед запросом
+  localStorage.removeItem('cache_getBenchmarkData');
+
   let res;
   try {
     res = await apiGet({ action: 'getBenchmarkData', from: cutoff, to: today });
@@ -7155,55 +7157,66 @@ async function renderBenchmark() {
   }
 
   const data = res.data || [];
-  if (!data.length) {
-    statsEl.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
+  
+  // Если данных мало или нет индекса — выводим ошибку
+  const hasIndex = data.filter(d => d.index !== null && d.index !== undefined).length > 0;
+  if (!data.length || !hasIndex) {
+    statsEl.innerHTML = '<div class="empty">Нет данных индекса. Проверьте таблицу price_history.</div>';
     return;
   }
 
-  // Считаем индексный эквивалент
+  // 1. Считаем индексный эквивалент (по потокам)
   const cashflows = [];
   const inv = S.invOperations || [];
   inv.filter(o => o.type === 'buy' || o.type === 'sell').forEach(op => {
     if (op.date >= cutoff) {
-      cashflows.push({ date: op.date, amount: op.type === 'buy' ? op.amount : -op.amount });
+      cashflows.push({ date: op.date, amount: op.type === 'buy' ? (op.amount_rub || op.amount) : -(op.amount_rub || op.amount) });
     }
   });
   cashflows.sort((a, b) => a.date.localeCompare(b.date));
 
   const indexEquivalent = [];
-  let lastIx = null;
-  
-  // Начальная точка для индекса
-  for (const d of data) {
-    if (d.index !== null) { lastIx = d.index; break; }
-  }
-
-  const firstIxValue = lastIx;
-  let lastKnownIx = firstIxValue;
+  let lastKnownIx = null;
 
   for (const pt of data) {
-    if (pt.index !== null) lastKnownIx = pt.index;
+    if (pt.index !== null && pt.index !== undefined) {
+      lastKnownIx = pt.index;
+    }
+    
+    // Находим цену индекса на текущую дату
     const ixToday = lastKnownIx;
+    if (ixToday === null) continue;
 
     let totalInIndex = 0;
     for (const cf of cashflows) {
       if (cf.date > pt.date) break;
-      // Находим цену индекса на дату потока
+      
+      // Ищем цену индекса на дату потока
       let ixAtCf = null;
       for (const d2 of data) {
         if (d2.date <= cf.date && d2.index !== null) ixAtCf = d2.index;
         if (d2.date > cf.date) break;
       }
-      if (ixAtCf) totalInIndex += cf.amount * (ixToday / ixAtCf);
+      
+      if (ixAtCf && ixAtCf > 0) {
+        totalInIndex += cf.amount * (ixToday / ixAtCf);
+      }
     }
+    
     indexEquivalent.push({ date: pt.date, value: totalInIndex });
   }
 
-  const pfEnd = data[data.length - 1].value;
-  const ixEnd = indexEquivalent.length ? indexEquivalent[indexEquivalent.length - 1].value : 0;
-  const diffRub = pfEnd - ixEnd;
-  const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
+  if (!indexEquivalent.length) {
+    statsEl.innerHTML = '<div class="empty">Не удалось рассчитать индекс</div>';
+    return;
+  }
 
+  const pfEnd = data[data.length - 1].value;
+  const ixEnd = indexEquivalent[indexEquivalent.length - 1].value;
+  const diffRub = pfEnd - ixEnd;
+  
+  // ✅ ФИКС ДЕЛЕНИЯ НА НОЛЬ
+  const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
   const pfInvested = data[data.length - 1].invested || 0;
   const pfReturn = pfInvested > 0 ? ((pfEnd - pfInvested) / pfInvested) * 100 : 0;
   const ixReturn = pfInvested > 0 ? ((ixEnd - pfInvested) / pfInvested) * 100 : 0;
