@@ -7457,75 +7457,58 @@ function renderBenchmarkChartInRubles(portfolioData, indexEquivalent, indexName)
   const labels = portfolioData.map(p => p.date);
   const pfValues = portfolioData.map(p => p.value);
   const ixValues = indexEquivalent.map(p => p.value);
-  // Третья линия — вложенный капитал (если есть)
-  const investedValues = portfolioData.map(p => p.invested || null);
-  const hasInvested = investedValues.some(v => v > 0);
-  
-  const datasets = [
-    {
-      label: 'Портфель',
-      data: pfValues,
-      borderColor: '#6c63ff',
-      backgroundColor: 'rgba(108, 99, 255, 0.1)',
-      fill: true,
-      tension: 0.2,
-      pointRadius: 0,
-      pointHoverRadius: 4,
-      borderWidth: 2,
-    },
-    {
-      label: indexName,
-      data: ixValues,
-      borderColor: '#f6ad55',
-      backgroundColor: 'rgba(246, 173, 85, 0.03)',
-      fill: true,
-      tension: 0.2,
-      pointRadius: 0,
-      pointHoverRadius: 4,
-      borderWidth: 2,
-      borderDash: [6, 4],
-    }
-  ];
-  
-  if (hasInvested) {
-    datasets.push({
-      label: 'Вложено',
-      data: investedValues,
-      borderColor: '#48bb78',
-      backgroundColor: 'transparent',
-      fill: false,
-      tension: 0.2,
-      pointRadius: 0,
-      pointHoverRadius: 4,
-      borderWidth: 1.5,
-      borderDash: [2, 2],
-    });
-  }
+  const investedValues = portfolioData.map(p => p.invested || 0);
   
   S.benchmarkChart = new Chart(ctx, {
     type: 'line',
-    data: { labels, datasets },
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Портфель',
+          data: pfValues,
+          borderColor: '#6c63ff',
+          backgroundColor: 'rgba(108, 99, 255, 0.1)',
+          fill: true,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: indexName,
+          data: ixValues,
+          borderColor: '#f6ad55',
+          backgroundColor: 'rgba(246, 173, 85, 0.03)',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderDash: [6, 4],
+        },
+        {
+          label: 'Вложено',
+          data: investedValues,
+          borderColor: '#48bb78',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 1.5,
+          borderDash: [2, 2],
+        }
+      ]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: '#8892a4', font: { size: 12 } } },
-        tooltip: {
-          callbacks: {
-            label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}`
-          }
-        }
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } }
       },
       scales: {
-        x: {
-          ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 },
-          grid: { color: 'rgba(46, 49, 72, 0.3)' }
-        },
-        y: {
-          ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) },
-          grid: { color: 'rgba(46, 49, 72, 0.3)' }
-        }
+        x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: 'rgba(46, 49, 72, 0.3)' } },
+        y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
       }
     }
   });
