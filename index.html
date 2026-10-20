@@ -7140,130 +7140,81 @@ function setBenchmarkIndex(indexCode, btn) {
 async function renderBenchmark() {
   const statsEl = document.getElementById('benchmark-stats');
   if (!statsEl) return;
-  
   statsEl.innerHTML = '<div class="loader">Загрузка...</div>';
-  
-  const portfolioHistory = await calcPortfolioHistory();
-  const indexHistory = await loadIndexHistoryCached(S.benchmarkIndex);
-  
-  if (!portfolioHistory.length || !indexHistory.length) {
-    statsEl.innerHTML = '<div class="empty">Нет данных для сравнения</div>';
+
+  const cutoff = getBenchmarkCutoff();
+  const today = new Date().toISOString().substring(0, 10);
+
+  // ✅ БЫСТРЫЙ ЗАПРОС ИЗ БАЗЫ
+  let res;
+  try {
+    res = await apiGet({ action: 'getBenchmarkData', from: cutoff, to: today });
+  } catch(e) {
+    statsEl.innerHTML = '<div class="empty">Ошибка загрузки</div>';
     return;
   }
-  
-  const cutoff = getBenchmarkCutoff();
-  const filteredPortfolio = portfolioHistory.filter(p => p.date >= cutoff);
-  const filteredIndex = indexHistory.filter(p => p.date >= cutoff);
-  
-  if (!filteredPortfolio.length || !filteredIndex.length) {
+
+  const data = res.data || [];
+  if (!data.length) {
     statsEl.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
     return;
   }
-  
-  // Выравниваем по общим датам
-  const allDates = [...new Set([
-    ...filteredPortfolio.map(p => p.date),
-    ...filteredIndex.map(p => p.date)
-  ])].sort();
-  
-  const pfMap = {}; filteredPortfolio.forEach(p => pfMap[p.date] = p.value);
-  const ixMap = {}; filteredIndex.forEach(p => ixMap[p.date] = p.price);
-  
-  let lastPf = null, lastIx = null;
-  const alignedPf = [];
-  const alignedIx = [];
-  for (const d of allDates) {
-    if (pfMap[d] !== undefined) lastPf = pfMap[d];
-    if (ixMap[d] !== undefined) lastIx = ixMap[d];
-    if (lastPf !== null) alignedPf.push({ date: d, value: lastPf });
-    if (lastIx !== null) alignedIx.push({ date: d, value: lastIx });
-  }
-  
-  if (!alignedPf.length || !alignedIx.length) {
-    statsEl.innerHTML = '<div class="empty">Нет синхронных данных</div>';
-    return;
-  }
-  
-    // ✅ Индексный эквивалент с учётом всех пополнений и выводов
-  // Для каждого cashflow: (amount) × (MCFTR_сегодня / MCFTR_на_дату_вложения)
-  
-   // 1. Собираем все cashflow и СОРТИРУЕМ по дате
+
+  // Считаем индексный эквивалент
   const cashflows = [];
   const inv = S.invOperations || [];
   inv.filter(o => o.type === 'buy' || o.type === 'sell').forEach(op => {
-    const amt = op.amount_rub || op.amount || 0;
-    if (!amt) return;
-    cashflows.push({
-      date: op.date,
-      amount: op.type === 'buy' ? amt : -amt,
-    });
-  });
-  // ✅ КРИТИЧНО: сортировка по дате
-  cashflows.sort((a, b) => a.date.localeCompare(b.date));
-  
-  // 2. Функция MCFTR на дату (forward fill)
-  const getIndexPrice = (date) => {
-    let last = null;
-    for (const p of alignedIx) {
-      if (p.date <= date) last = p.value;
-      else break;
+    if (op.date >= cutoff) {
+      cashflows.push({ date: op.date, amount: op.type === 'buy' ? op.amount : -op.amount });
     }
-    return last;
-  };
+  });
+  cashflows.sort((a, b) => a.date.localeCompare(b.date));
+
+  const indexEquivalent = [];
+  let lastIx = null;
   
-  // ✅ Если дата до первой точки в alignedIx — берём первую доступную (ближайшую)
-  const firstIxDate = alignedIx[0]?.date;
-  const firstIxValue = alignedIx[0]?.value;
-  
-  const getIndexPriceSafe = (date) => {
-    const p = getIndexPrice(date);
-    if (p !== null) return p;
-    // fallback: если дата до начала — берём первую известную цену
-    return firstIxValue || null;
-  };
-  
-  // 3. Индексный эквивалент
-  const todayIx = alignedIx[alignedIx.length - 1].value;
-  const indexEquivalent = alignedPf.map(pfPoint => {
-    const date = pfPoint.date;
-    const ixToday = getIndexPriceSafe(date);
-    
+  // Начальная точка для индекса
+  for (const d of data) {
+    if (d.index !== null) { lastIx = d.index; break; }
+  }
+
+  const firstIxValue = lastIx;
+  let lastKnownIx = firstIxValue;
+
+  for (const pt of data) {
+    if (pt.index !== null) lastKnownIx = pt.index;
+    const ixToday = lastKnownIx;
+
     let totalInIndex = 0;
     for (const cf of cashflows) {
-      if (cf.date > date) break;
-      const ixAtCf = getIndexPriceSafe(cf.date);
-      if (!ixAtCf) continue;
-      totalInIndex += cf.amount * (ixToday / ixAtCf);
+      if (cf.date > pt.date) break;
+      // Находим цену индекса на дату потока
+      let ixAtCf = null;
+      for (const d2 of data) {
+        if (d2.date <= cf.date && d2.index !== null) ixAtCf = d2.index;
+        if (d2.date > cf.date) break;
+      }
+      if (ixAtCf) totalInIndex += cf.amount * (ixToday / ixAtCf);
     }
-    
-    return { date, value: totalInIndex };
-  });
-  
-  // Итоги в рублях
-  const pfEnd = alignedPf[alignedPf.length - 1].value;
-  const ixEnd = indexEquivalent[indexEquivalent.length - 1].value;
-  
+    indexEquivalent.push({ date: pt.date, value: totalInIndex });
+  }
+
+  const pfEnd = data[data.length - 1].value;
+  const ixEnd = indexEquivalent.length ? indexEquivalent[indexEquivalent.length - 1].value : 0;
   const diffRub = pfEnd - ixEnd;
   const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
-  
-  // Проценты возврата
-   // ✅ Проценты — оба от суммы вложенного (не от стартовой стоимости)
-  const pfInvested = alignedPf[alignedPf.length - 1].invested || 0;
+
+  const pfInvested = data[data.length - 1].invested || 0;
   const pfReturn = pfInvested > 0 ? ((pfEnd - pfInvested) / pfInvested) * 100 : 0;
   const ixReturn = pfInvested > 0 ? ((ixEnd - pfInvested) / pfInvested) * 100 : 0;
-  
-  // XIRR
-  const portfolioXirr = calcBenchmarkXirr(alignedPf, 'portfolio');
-  const indexXirr = calcBenchmarkXirr(indexEquivalent, 'portfolio');  // ✅ тот же метод
-  
+
   const diffSign = diffRub >= 0 ? '+' : '';
   const diffColor = diffRub >= 0 ? 'c-income' : 'c-expense';
   const diffWord = diffRub >= 0 ? 'обгоняет' : 'отстаёт от';
   const periodLabel = S.benchmarkPeriod === 'all' ? 'всё время' :
                       S.benchmarkPeriod === '1y' ? 'последний год' :
-                      S.benchmarkPeriod === '3y' ? 'последние 3 года' :
-                      'последние 5 лет';
-  
+                      S.benchmarkPeriod === '3y' ? 'последние 3 года' : 'последние 5 лет';
+
   statsEl.innerHTML = `
     <div class="stat-card" style="grid-column:1/-1;background:${diffRub >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffRub >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
       <div class="stat-label" style="font-size:12px">🎯 Портфель ${diffWord} ${S.benchmarkIndex}</div>
@@ -7273,20 +7224,16 @@ async function renderBenchmark() {
     <div class="stat-card">
       <div class="stat-label">💼 Портфель сейчас</div>
       <div class="stat-value c-accent" style="font-size:20px">${fmt(pfEnd)}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">${pfReturn >= 0 ? '+' : ''}${pfReturn.toFixed(2)}% · XIRR ${portfolioXirr !== null ? (portfolioXirr >= 0 ? '+' : '') + portfolioXirr.toFixed(2) + '%' : '—'}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">${pfReturn >= 0 ? '+' : ''}${pfReturn.toFixed(2)}%</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">📊 ${S.benchmarkIndex} эквивалент</div>
       <div class="stat-value c-text" style="font-size:20px">${fmt(ixEnd)}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">${ixReturn >= 0 ? '+' : ''}${ixReturn.toFixed(2)}% · XIRR ${indexXirr !== null ? (indexXirr >= 0 ? '+' : '') + indexXirr.toFixed(2) + '%' : '—'}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">${ixReturn >= 0 ? '+' : ''}${ixReturn.toFixed(2)}%</div>
     </div>
   `;
-  
-  // График в рублях
-  renderBenchmarkChartInRubles(alignedPf, indexEquivalent, S.benchmarkIndex);
-  
-  // Таблица по годам
-  renderBenchmarkTableInRubles(portfolioHistory, indexHistory, S.benchmarkIndex);
+
+  renderBenchmarkChartInRubles(data, indexEquivalent, S.benchmarkIndex);
 }
 function getBenchmarkCutoff() {
   const now = new Date();
