@@ -1,4 +1,4 @@
-name: Test Tinkoff API
+name: Test Tinkoff Operations
 
 on:
   workflow_dispatch:
@@ -7,9 +7,17 @@ jobs:
   test-api:
     runs-on: ubuntu-latest
     steps:
-      - name: Test connection
+      - name: Get Operations
         run: |
-          curl -k -s -X POST "https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.UsersService/GetAccounts" \
+          curl -k -s -X POST "https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.OperationsService/GetOperationsByCursor" \
           -H "Authorization: Bearer ${{ secrets.TINKOFF_TOKEN }}" \
           -H "Content-Type: application/json" \
-          -d '{}'
+          -d '{
+            "accountId": "2045349582",
+            "from": "2024-03-01T00:00:00Z",
+            "to": "2024-03-31T23:59:59Z",
+            "limit": 10
+          }' > response.json
+          
+          echo "=== ОТВЕТ ОТ Т-БАНКА ==="
+          cat response.json
