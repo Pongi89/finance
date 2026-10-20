@@ -72,7 +72,7 @@ def main():
 
     print(f"Всего операций получено: {len(all_ops)}")
 
-    # 3. Преобразуем в формат для Apps Script
+        # 3. Преобразуем в формат для Apps Script
     import_data = []
     for op in all_ops:
         if op.get('state') != 'OPERATION_STATE_EXECUTED':
@@ -85,34 +85,42 @@ def main():
         elif 'SELL' in op_type: mapped_type = 'sell'
         elif 'DIVIDEND' in op_type and 'TAX' not in op_type: mapped_type = 'dividend'
         elif 'COUPON' in op_type: mapped_type = 'coupon'
-        elif 'TAX' in op_type: mapped_type = 'tax' # обрабатываем отдельно как налог
-        else: continue # пропускаем переводы и прочее
+        elif 'TAX' in op_type: continue # Налоги пропускаем (они уменьшают сумму дивидендов)
+        else: continue # пропускаем переводы, ввод/вывод и прочее
 
         # Маппинг типа актива
         inst_type = op.get('instrumentType', '')
-        asset_type = 'stock'
-        if inst_type == 'bond': asset_type = 'bond'
-        elif inst_type == 'etf': asset_type = 'etf'
-        elif inst_type == 'currency': asset_type = 'currency_bond'
+        op_currency = op.get('payment', {}).get('currency', 'rub')
+        
+        if 'money_market' in op.get('classCode', '').lower() or op.get('ticker') == 'TMON@':
+            asset_type = 'money_market'
+        elif inst_type == 'bond': 
+            if op_currency != 'rub': 
+                asset_type = 'currency_bond'
+            else: 
+                asset_type = 'bond'
+        elif inst_type == 'etf': 
+            asset_type = 'etf'
+        else: 
+            asset_type = 'stock'
 
-        # Сумма и цена
+        # Сумма, цена, количество и комиссия
         payment = parse_quotation(op.get('payment', {}))
         price = parse_quotation(op.get('price', {}))
+        commission = parse_quotation(op.get('commission', {}))
         quantity = float(op.get('quantity', 0))
         
-        # Если это налог, то сумма отрицательная, вешаем на родителя (дивиденд)
-        tax = 0
-        if mapped_type == 'tax':
-            tax = abs(payment) # налог всегда списывается
-            continue # Пока пропускаем, чтобы не ломать логику, добавим позже
-        
-        # Для дивидендов и купонов quantity = 0, сумма = payment
+        # Для дивидендов и купонов quantity = 0, сумма = payment (она положительная)
         amount = abs(payment) if mapped_type in ['buy', 'sell'] else payment
 
         date_str = op.get('date', '').split('T')[0]
         
+        # Формируем правильный ID
+        raw_id = op.get('id', '')
+        formatted_id = f"inv_tinkoff_{raw_id}"
+
         import_data.append({
-            "id": op.get('id'),
+            "id": formatted_id,
             "date": date_str,
             "type": mapped_type,
             "ticker": op.get('ticker', ''),
@@ -122,9 +130,9 @@ def main():
             "quantity": quantity,
             "price": price,
             "amount": amount,
-            "fee": 0,
+            "fee": abs(commission),
             "tax": 0,
-            "account": acc['name'],
+            "account": "Т-Банк", # ✅ Единое название счета
             "comment": op.get('description', ''),
             "face_value": 1000
         })
