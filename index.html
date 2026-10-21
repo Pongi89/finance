@@ -5461,7 +5461,7 @@ await renderInvestmentsSummary(positions);
     
     // Считаем метрики по тикеру для сортировки
     tickers = tickers.map(accounts => {
-      const agg = aggregateAccounts(accounts);
+      const agg = aggregateAccounts(accounts, totalValue);
       return { accounts, agg };
     });
     
@@ -5610,7 +5610,7 @@ const sumShare = totalValue > 0 ? (sumValue / totalValue * 100) : 0;
 }
 
 // Агрегация метрик по нескольким счетам одного тикера
-function aggregateAccounts(accounts) {
+function aggregateAccounts(accounts, totalValue) {
   let quantity = 0;
   let totalBuyCost = 0;
   let currentValue = 0;
@@ -5634,6 +5634,9 @@ function aggregateAccounts(accounts) {
   const profitPercent = totalBuyCost > 0 ? (profit / totalBuyCost * 100) : 0;
   const divYield = totalBuyCost > 0 ? (payouts12m / totalBuyCost * 100) : 0;
   
+  // ✅ Считаем долю для родительской строки
+  const share = totalValue > 0 && currentValue !== null ? (currentValue / totalValue * 100) : 0;
+  
   return {
     ticker: accounts[0].ticker,
     name: accounts[0].name,
@@ -5646,7 +5649,7 @@ function aggregateAccounts(accounts) {
     profit,
     profitPercent,
     divYield,
-    share: 0, // заполним после
+    share: share, // Теперь здесь реальная доля
   };
 }
 
