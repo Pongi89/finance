@@ -95,11 +95,14 @@ def main():
         else: 
             continue # переводы и прочее
 
-        # Маппинг типа актива
+                # Маппинг типа актива
         inst_type = op.get('instrumentType', '')
         op_currency = op.get('payment', {}).get('currency', 'rub')
+        ticker = op.get('ticker', '')
         
-        if 'money_market' in op.get('classCode', '').lower() or op.get('ticker') == 'TMON@':
+        if ticker == 'GLDRUB_TOM':
+            asset_type = 'gold'
+        elif 'money_market' in op.get('classCode', '').lower() or ticker == 'TMON@':
             asset_type = 'money_market'
         elif inst_type == 'bond': 
             if op_currency != 'rub': 
