@@ -7651,12 +7651,12 @@ async function loadIndexHistoryCached(indexCode) {
   statusEl.style.color = 'var(--text2)';
 
   const reader = new FileReader();
+  
   reader.onload = async function(e) {
-    const base64 = e.target.result.split(',')[1];
-
-    statusEl.textContent = 'Загрузка в базу (может занять до 10 секунд)...';
-
     try {
+      const base64 = e.target.result.split(',')[1];
+      statusEl.textContent = 'Загрузка в базу...';
+
       const res = await apiPost({
         action: 'importFromVTB',
         fileBase64: base64
@@ -7666,7 +7666,6 @@ async function loadIndexHistoryCached(indexCode) {
         statusEl.textContent = `✅ Успешно загружено ${res.added} операций!`;
         statusEl.style.color = 'var(--income)';
         
-        // Отладка: если бэкенд вернул текст, показываем его
         if (res.error) {
           statusEl.textContent = res.error; 
           statusEl.style.color = 'var(--accent)';
@@ -7685,6 +7684,7 @@ async function loadIndexHistoryCached(indexCode) {
       statusEl.style.color = 'var(--expense)';
     }
   };
+  
   reader.readAsDataURL(file);
   input.value = '';
 }
