@@ -7652,7 +7652,6 @@ async function loadIndexHistoryCached(indexCode) {
 
   const reader = new FileReader();
   reader.onload = async function(e) {
-    // Base64 без префикса data:...
     const base64 = e.target.result.split(',')[1];
 
     statusEl.textContent = 'Загрузка в базу (может занять до 10 секунд)...';
@@ -7663,30 +7662,26 @@ async function loadIndexHistoryCached(indexCode) {
         fileBase64: base64
       });
 
-           if (res.success) {
+      if (res.success) {
         statusEl.textContent = `✅ Успешно загружено ${res.added} операций!`;
+        statusEl.style.color = 'var(--income)';
         
-        // 👇 ВРЕМЕННАЯ ОТЛАДКА 👇
+        // Отладка: если бэкенд вернул текст, показываем его
         if (res.error) {
           statusEl.textContent = res.error; 
           statusEl.style.color = 'var(--accent)';
         }
-        // 👆 КОНЕЦ ОТЛАДКИ 👆
-        
-        statusEl.style.color = res.error ? 'var(--accent)' : 'var(--income)';
         
         S.invOperations = null;
         S.invPortfolio = null;
         localStorage.removeItem('cache_getInvestments');
         localStorage.removeItem('cache_calcPortfolio');
-      }
-        
       } else {
         statusEl.textContent = '❌ Ошибка: ' + (res.error || 'неизвестно');
         statusEl.style.color = 'var(--expense)';
       }
     } catch(err) {
-      statusEl.textContent = '❌ Ошибка отправки';
+      statusEl.textContent = '❌ Ошибка отправки: ' + err.message;
       statusEl.style.color = 'var(--expense)';
     }
   };
