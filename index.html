@@ -1080,6 +1080,7 @@ th.sortable.sorted-desc::after {
   <button class="period-btn" onclick="setInvestmentsTab('analytics', this)">📈 Аналитика</button>
   <button class="period-btn" onclick="setInvestmentsTab('benchmark', this)">🎯 vs Индекс</button>
   <button class="period-btn" onclick="setInvestmentsTab('add', this)">➕ Операция</button>
+    
 </div>
 
   <!-- Сводка (видна на всех подвкладках) -->
@@ -1355,6 +1356,15 @@ th.sortable.sorted-desc::after {
         </div>
 
       </div>
+      <!-- Вставь это туда, где тебе удобно, например, над кнопкой Сохранить -->
+<div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
+  <div class="card-title">Импорт из ВТБ</div>
+  <input type="file" id="vtb-excel-upload" accept=".xlsx, .xls" style="display:none" onchange="uploadVTBReport(this)">
+  <button class="btn btn-primary" onclick="document.getElementById('vtb-excel-upload').click()">
+    📁 Загрузить отчет ВТБ (.xlsx)
+  </button>
+  <div id="vtb-upload-status" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+</div>
     </div>
   </div>
 
@@ -7631,6 +7641,47 @@ async function loadIndexHistoryCached(indexCode) {
   } catch(e) {}
   
   return history;
+}
+  async function uploadVTBReport(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('vtb-upload-status');
+  statusEl.textContent = 'Чтение файла...';
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const base64 = e.target.result.split(',')[1];
+    statusEl.textContent = 'Загрузка в базу (может занять до 10 секунд)...';
+
+    try {
+      const res = await apiPost({
+        action: 'importFromVTB',
+        fileName: file.name,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        fileBase64: base64
+      });
+
+      if (res.success) {
+        statusEl.textContent = `✅ Успешно загружено ${res.added} операций!`;
+        statusEl.style.color = 'var(--income)';
+        // Сбрасываем кэш и перерисовываем
+        S.invOperations = null;
+        S.invPortfolio = null;
+        localStorage.removeItem('cache_getInvestments');
+        localStorage.removeItem('cache_calcPortfolio');
+        setTimeout(() => setInvestmentsTab('portfolio', null), 1500);
+      } else {
+        statusEl.textContent = '❌ Ошибка: ' + (res.error || 'неизвестно');
+        statusEl.style.color = 'var(--expense)';
+      }
+    } catch(err) {
+      statusEl.textContent = '❌ Ошибка при отправке файла';
+      statusEl.style.color = 'var(--expense)';
+    }
+  };
+  reader.readAsDataURL(file);
+  input.value = ''; // очищаем поле
 }
 </script>
 </body>
