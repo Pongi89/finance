@@ -7642,38 +7642,31 @@ async function loadIndexHistoryCached(indexCode) {
   
   return history;
 }
-  async function uploadVTBReport(input) {
+ async function uploadVTBReport(input) {
   const file = input.files[0];
   if (!file) return;
 
   const statusEl = document.getElementById('vtb-upload-status');
-  statusEl.textContent = 'Чтение и конвертация файла...';
+  statusEl.textContent = 'Чтение файла...';
   statusEl.style.color = 'var(--text2)';
 
   const reader = new FileReader();
   reader.onload = async function(e) {
+    // Base64 без префикса data:...
+    const base64 = e.target.result.split(',')[1];
+
+    statusEl.textContent = 'Загрузка в базу (может занять до 10 секунд)...';
+
     try {
-      const data = new Uint8Array(e.target.result);
-      // ✅ Читаем Excel в браузере
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      
-      // Конвертируем в CSV (разделитель ;)
-      const csvText = XLSX.utils.sheet_to_csv(firstSheet, { FS: ';' });
-
-      statusEl.textContent = 'Загрузка в базу (до 10 секунд)...';
-
-      // Отправляем CSV-текст на бэкенд
       const res = await apiPost({
         action: 'importFromVTB',
-        csvText: csvText
+        fileBase64: base64
       });
 
       if (res.success) {
         statusEl.textContent = `✅ Успешно загружено ${res.added} операций!`;
         statusEl.style.color = 'var(--income)';
         
-        // Сбрасываем кэш
         S.invOperations = null;
         S.invPortfolio = null;
         localStorage.removeItem('cache_getInvestments');
@@ -7684,12 +7677,12 @@ async function loadIndexHistoryCached(indexCode) {
         statusEl.style.color = 'var(--expense)';
       }
     } catch(err) {
-      statusEl.textContent = '❌ Ошибка: ' + err.message;
+      statusEl.textContent = '❌ Ошибка отправки';
       statusEl.style.color = 'var(--expense)';
     }
   };
-  reader.readAsArrayBuffer(file);
-  input.value = ''; // очищаем поле
+  reader.readAsDataURL(file);
+  input.value = '';
 }
 </script>
 </body>
