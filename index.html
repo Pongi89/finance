@@ -7684,11 +7684,11 @@ async function loadIndexHistoryCached(indexCode) {
       statusEl.textContent = '❌ Ошибка отправки: ' + err.message;
       statusEl.style.color = 'var(--expense)';
     }
-  }; // <-- ЗДЕСЬ ЗАКРЫВАЕТСЯ reader.onload
+  };
   
   reader.readAsDataURL(file);
   input.value = '';
-} // <-- ЗДЕСЬ ЗАКРЫВАЕТСЯ uploadVTBReport
+}
 
 </script>
 </body>
