@@ -7649,6 +7649,7 @@ async function loadIndexHistoryCached(indexCode) {
   const statusEl = document.getElementById('vtb-upload-status');
   statusEl.textContent = 'Чтение файла...';
   statusEl.style.color = 'var(--text2)';
+  statusEl.style.whiteSpace = 'pre-wrap';
 
   const reader = new FileReader();
   
@@ -7662,12 +7663,11 @@ async function loadIndexHistoryCached(indexCode) {
         fileBase64: base64
       });
 
-            if (res.success) {
+      if (res.success) {
         if (res.error) {
           // Если бэкенд вернул отладочный текст, показываем его
           statusEl.textContent = res.error; 
           statusEl.style.color = 'var(--accent)';
-          statusEl.style.whiteSpace = 'pre-wrap';
         } else {
           statusEl.textContent = `✅ Успешно загружено ${res.added} операций!`;
           statusEl.style.color = 'var(--income)';
@@ -7677,7 +7677,6 @@ async function loadIndexHistoryCached(indexCode) {
         S.invPortfolio = null;
         localStorage.removeItem('cache_getInvestments');
         localStorage.removeItem('cache_calcPortfolio');
-      }
       } else {
         statusEl.textContent = '❌ Ошибка: ' + (res.error || 'неизвестно');
         statusEl.style.color = 'var(--expense)';
