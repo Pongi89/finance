@@ -7655,7 +7655,7 @@ async function loadIndexHistoryCached(indexCode) {
   reader.onload = async function(e) {
     try {
       const base64 = e.target.result.split(',')[1];
-      statusEl.textContent = 'Загрузка в базу...';
+      statusEl.textContent = 'Загрузка в базу (может занять до 10 секунд)...';
 
       const res = await apiPost({
         action: 'importFromVTB',
@@ -7665,11 +7665,6 @@ async function loadIndexHistoryCached(indexCode) {
       if (res.success) {
         statusEl.textContent = `✅ Успешно загружено ${res.added} операций!`;
         statusEl.style.color = 'var(--income)';
-        
-        if (res.error) {
-          statusEl.textContent = res.error; 
-          statusEl.style.color = 'var(--accent)';
-        }
         
         S.invOperations = null;
         S.invPortfolio = null;
