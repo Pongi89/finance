@@ -7656,7 +7656,7 @@ async function loadIndexHistoryCached(indexCode) {
   reader.onload = async function(e) {
     try {
       const base64 = e.target.result.split(',')[1];
-      statusEl.textContent = 'Загрузка в базу (может занять до 10 секунд)...';
+      statusEl.textContent = 'Загрузка в базу...';
 
       const res = await apiPost({
         action: 'importFromVTB',
@@ -7665,7 +7665,6 @@ async function loadIndexHistoryCached(indexCode) {
 
       if (res.success) {
         if (res.error) {
-          // Если бэкенд вернул отладочный текст, показываем его
           statusEl.textContent = res.error; 
           statusEl.style.color = 'var(--accent)';
         } else {
@@ -7685,10 +7684,11 @@ async function loadIndexHistoryCached(indexCode) {
       statusEl.textContent = '❌ Ошибка отправки: ' + err.message;
       statusEl.style.color = 'var(--expense)';
     }
-  };
+  }; // <-- ЗДЕСЬ ЗАКРЫВАЕТСЯ reader.onload
   
   reader.readAsDataURL(file);
   input.value = '';
+} // <-- ЗДЕСЬ ЗАКРЫВАЕТСЯ uploadVTBReport
 }
 </script>
 </body>
