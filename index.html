@@ -5756,6 +5756,8 @@ function renderInvRow(p, totalValue, isAccount = false) {
 // ============================================================
 // ПОДВКЛАДКА: ЗАКРЫТЫЕ ПОЗИЦИИ
 // ============================================================
+  // Состояние сортировки для закрытых позиций
+const closedSortState = { key: 'lastSellDate', asc: false };
 async function renderInvestmentsClosed() {
   const container = document.getElementById('inv-closed-list');
   if (!container) return;
@@ -5774,11 +5776,24 @@ async function renderInvestmentsClosed() {
   if (filter === 'positive') closed = closed.filter(p => (p.profit || 0) > 0);
   if (filter === 'negative') closed = closed.filter(p => (p.profit || 0) < 0);
   
-  // Сортировка по дате закрытия (новые сверху)
+  // Сортировка (по выбранному столбцу)
   closed = [...closed].sort((a, b) => {
-    const dateA = a.lastSellDate || '';
-    const dateB = b.lastSellDate || '';
-    return dateB.localeCompare(dateA);
+    let va, vb;
+    switch (closedSortState.key) {
+      case 'ticker': va = a.ticker || ''; vb = b.ticker || ''; break;
+      case 'firstBuyDate': va = a.firstBuyDate || ''; vb = b.firstBuyDate || ''; break;
+      case 'lastSellDate': va = a.lastSellDate || ''; vb = b.lastSellDate || ''; break;
+      case 'totalBuyCost': va = a.totalBuyCost || 0; vb = b.totalBuyCost || 0; break;
+      case 'payouts': va = (a.totalCoupons || 0) + (a.totalAmortization || 0); vb = (b.totalCoupons || 0) + (b.totalAmortization || 0); break;
+      case 'totalProceeds': va = a.totalProceeds || 0; vb = b.totalProceeds || 0; break;
+      case 'profit': va = a.profit || 0; vb = b.profit || 0; break;
+      case 'profitPercent': va = a.profitPercent || 0; vb = b.profitPercent || 0; break;
+      default: va = a.lastSellDate || ''; vb = b.lastSellDate || '';
+    }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      return closedSortState.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    return closedSortState.asc ? va - vb : vb - va;
   });
   
   if (!closed.length) {
@@ -5836,16 +5851,22 @@ async function renderInvestmentsClosed() {
     <col style="width: 9%">
   </colgroup>`;
   
-  // Заголовки
+   // Заголовки с сортировкой
+  const sortBtn = (key, label) => {
+    const isActive = closedSortState.key === key;
+    const icon = isActive ? (closedSortState.asc ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable" style="cursor:pointer; user-select:none; position:relative;" onclick="sortClosed('${key}')">${label}${icon}</th>`;
+  };
+
   html += `<thead><tr>
-    <th>Актив</th>
-    <th>Вход</th>
-    <th>Выход</th>
-    <th>Вложено</th>
-    <th>Выплаты</th>
-    <th>Продано</th>
-    <th>Прибыль</th>
-    <th>%</th>
+    ${sortBtn('ticker', 'Актив')}
+    ${sortBtn('firstBuyDate', 'Вход')}
+    ${sortBtn('lastSellDate', 'Выход')}
+    ${sortBtn('totalBuyCost', 'Вложено')}
+    ${sortBtn('payouts', 'Выплаты')}
+    ${sortBtn('totalProceeds', 'Продано')}
+    ${sortBtn('profit', 'Прибыль')}
+    ${sortBtn('profitPercent', '%')}
   </tr></thead><tbody>`;
   
   // Строки
@@ -7690,7 +7711,15 @@ async function loadIndexHistoryCached(indexCode) {
   reader.readAsDataURL(file);
   input.value = '';
 }
-
+function sortClosed(key) {
+  if (closedSortState.key === key) {
+    closedSortState.asc = !closedSortState.asc;
+  } else {
+    closedSortState.key = key;
+    closedSortState.asc = true; // по умолчанию по возрастанию
+  }
+  renderInvestmentsClosed();
+}
 </script>
 </body>
 </html>
