@@ -7181,7 +7181,6 @@ async function renderBenchmark() {
   const cutoff = getBenchmarkCutoff();
   const today = new Date().toISOString().substring(0, 10);
   
-  // Очищаем кэш, чтобы подтянуть свежие данные
   localStorage.removeItem('cache_getBenchmarkData');
   localStorage.removeItem('cache_getIndexHistory_MCFTR');
 
@@ -7227,22 +7226,32 @@ async function renderBenchmark() {
     return;
   }
 
-  // 3. Строим индексную линию на основе реальной цены MCFTR
+  // 3. Загружаем сделки за тот же период, чтобы виртуально пополнять индекс
+  let ops = S.invOperations || [];
+  if (!ops.length) {
+    try {
+      const invRes = await apiGet({ action: 'getInvestments' });
+      ops = invRes.data || [];
+    } catch(e) { console.warn(e); }
+  }
+  
+  // Фильтруем только покупки и продажи за выбранный период
+  ops = ops.filter(o => (o.type === 'buy' || o.type === 'sell') && o.date >= data[0].date);
+  ops.sort((a, b) => a.date.localeCompare(b.date));
+
+  // 4. Строим карту цен индекса
   const indexMap = {};
   indexHistory.forEach(p => { indexMap[p.date] = p.price; });
 
   const startDate = data[0].date;
   let indexStartPrice = null;
   
-  // Ищем цену индекса на стартовую дату (или ближайшую до неё)
   for (let i = 0; i < indexHistory.length; i++) {
     if (indexHistory[i].date >= startDate) {
       indexStartPrice = indexHistory[i].price;
       break;
     }
   }
-
-  // Если не нашли цену, ищем последнюю доступную
   if (!indexStartPrice) {
     for (let i = indexHistory.length - 1; i >= 0; i--) {
       if (indexHistory[i].date <= startDate) {
@@ -7252,26 +7261,45 @@ async function renderBenchmark() {
     }
   }
 
-  // 4. Выравниваем стартовую точку
-  const baseValue = data[0].value; // Стоимость портфеля на старте
+  const baseValue = data[0].value;
   if (!indexStartPrice || !baseValue) {
     statsEl.innerHTML = '<div class="empty">Нет данных для старта</div>';
     return;
   }
 
-  // 5. Пересчитываем индексную линию
+  // 5. Виртуальный портфель индекса: покупаем/продаем MCFTR на каждую сделку
+  let indexShares = baseValue / indexStartPrice; // Сколько "паев" индекса куплено на старте
   let currentIndexPrice = indexStartPrice;
-  
+  let opsPtr = 0;
+
   const newData = data.map(p => {
-    // Обновляем текущую цену индекса, если есть свежая
+    // Обновляем цену индекса на текущий день
     if (indexMap[p.date]) {
       currentIndexPrice = indexMap[p.date];
     }
-    
-    // Стоимость виртуального портфеля в индексе
-    // Коэффициент = (текущая цена индекса / цена на старте)
-    const indexEquivalent = (currentIndexPrice / indexStartPrice) * baseValue;
-    
+
+    // Применяем все сделки, которые были в этот день или раньше
+    while (opsPtr < ops.length && ops[opsPtr].date <= p.date) {
+      const op = ops[opsPtr];
+      const amountRub = op.amount_rub || op.amount || 0;
+      
+      if (op.type === 'buy') {
+        // Пополняем виртуальный индекс на сумму покупки
+        if (currentIndexPrice > 0) {
+          indexShares += amountRub / currentIndexPrice;
+        }
+      } else if (op.type === 'sell') {
+        // Выводим деньги из индекса
+        if (currentIndexPrice > 0) {
+          const sharesToSell = amountRub / currentIndexPrice;
+          indexShares = Math.max(0, indexShares - sharesToSell);
+        }
+      }
+      opsPtr++;
+    }
+
+    const indexEquivalent = indexShares * currentIndexPrice;
+
     return {
       ...p,
       index_equivalent: indexEquivalent
