@@ -7180,15 +7180,17 @@ async function renderBenchmark() {
 
   const cutoff = getBenchmarkCutoff();
   const today = new Date().toISOString().substring(0, 10);
+  
+  // Очищаем кэш, чтобы подтянуть свежие данные
   localStorage.removeItem('cache_getBenchmarkData');
-  localStorage.removeItem('cache_getIndexHistory');
+  localStorage.removeItem('cache_getIndexHistory_MCFTR');
 
   let res;
   try {
-    // Запрашиваем данные с 2019 года, чтобы найти правильную точку старта
+    // Запрашиваем портфель с 2019 года
     res = await apiGet({ action: 'getBenchmarkData', from: '2019-01-01', to: today });
   } catch(e) {
-    statsEl.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+    statsEl.innerHTML = '<div class="empty">Ошибка загрузки портфеля</div>';
     return;
   }
 
@@ -7198,13 +7200,12 @@ async function renderBenchmark() {
     return;
   }
 
-  // 1. Отсекаем всё, что было до начала выбранного периода
+  // 1. Отсекаем всё до начала выбранного периода
   let startIndex = data.findIndex(p => p.date >= cutoff);
   if (startIndex === -1) {
     statsEl.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
     return;
   }
-
   data = data.slice(startIndex);
 
   if (data.length < 2) {
@@ -7212,32 +7213,73 @@ async function renderBenchmark() {
     return;
   }
 
-  // 2. Находим первую точку, где есть и портфель, и индекс
-  let baseValue = data[0].value;
-  let baseIndex = data[0].index_equivalent;
+  // 2. Загружаем историю индекса MCFTR
+  let indexHistory = [];
+  try {
+    const indexRes = await apiGet({ action: 'getIndexHistory', index: 'MCFTR', from: '2019-01-01', to: today });
+    indexHistory = indexRes.data || [];
+  } catch(e) {
+    console.warn('Не удалось загрузить MCFTR', e);
+  }
+
+  if (!indexHistory.length) {
+    statsEl.innerHTML = '<div class="empty">Ошибка загрузки индекса MCFTR</div>';
+    return;
+  }
+
+  // 3. Строим индексную линию на основе реальной цены MCFTR
+  const indexMap = {};
+  indexHistory.forEach(p => { indexMap[p.date] = p.price; });
+
+  const startDate = data[0].date;
+  let indexStartPrice = null;
   
-  // Если первая точка нулевая (портфель пуст), ищем первую ненулевую
-  for (let i = 0; i < data.length; i++) {
-    if (data[i].value > 0 && data[i].index_equivalent > 0) {
-      baseValue = data[i].value;
-      baseIndex = data[i].index_equivalent;
+  // Ищем цену индекса на стартовую дату (или ближайшую до неё)
+  for (let i = 0; i < indexHistory.length; i++) {
+    if (indexHistory[i].date >= startDate) {
+      indexStartPrice = indexHistory[i].price;
       break;
     }
   }
 
-  // 3. Выравниваем индекс так, чтобы он начинался ровно с baseValue
-  if (baseIndex > 0 && baseValue > 0) {
-    const scale = baseValue / baseIndex;
-    data = data.map(p => ({
-      ...p,
-      index_equivalent: p.index_equivalent * scale,
-      // Защита от "прыжков" портфеля: если стоимость меньше вложений, берем вложения
-      value: Math.max(p.value, p.invested || 0) 
-    }));
+  // Если не нашли цену, ищем последнюю доступную
+  if (!indexStartPrice) {
+    for (let i = indexHistory.length - 1; i >= 0; i--) {
+      if (indexHistory[i].date <= startDate) {
+        indexStartPrice = indexHistory[i].price;
+        break;
+      }
+    }
   }
 
-  // 4. Считаем разницу для плашки
-  const lastPoint = data[data.length - 1];
+  // 4. Выравниваем стартовую точку
+  const baseValue = data[0].value; // Стоимость портфеля на старте
+  if (!indexStartPrice || !baseValue) {
+    statsEl.innerHTML = '<div class="empty">Нет данных для старта</div>';
+    return;
+  }
+
+  // 5. Пересчитываем индексную линию
+  let currentIndexPrice = indexStartPrice;
+  
+  const newData = data.map(p => {
+    // Обновляем текущую цену индекса, если есть свежая
+    if (indexMap[p.date]) {
+      currentIndexPrice = indexMap[p.date];
+    }
+    
+    // Стоимость виртуального портфеля в индексе
+    // Коэффициент = (текущая цена индекса / цена на старте)
+    const indexEquivalent = (currentIndexPrice / indexStartPrice) * baseValue;
+    
+    return {
+      ...p,
+      index_equivalent: indexEquivalent
+    };
+  });
+
+  // 6. Считаем разницу для плашки
+  const lastPoint = newData[newData.length - 1];
   const pfEnd = lastPoint.value;
   const ixEnd = lastPoint.index_equivalent;
   
@@ -7251,7 +7293,7 @@ async function renderBenchmark() {
                       S.benchmarkPeriod === '1y' ? 'последний год' :
                       S.benchmarkPeriod === '3y' ? 'последние 3 года' : 'последние 5 лет';
 
-  // 5. Рендерим плашку
+  // 7. Рендерим плашку
   statsEl.innerHTML = `
     <div class="stat-card" style="grid-column:1/-1;background:${diffRub >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffRub >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'};padding:16px 20px">
       <div style="font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -7263,16 +7305,16 @@ async function renderBenchmark() {
     </div>
   `;
 
-  // 6. Рисуем график
+  // 8. Рисуем график
   const canvas = document.getElementById('chart-benchmark');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (S.benchmarkChart) S.benchmarkChart.destroy();
 
-  const labels = data.map(p => p.date);
-  const pfValues = data.map(p => p.value);
-  const ixValues = data.map(p => p.index_equivalent);
-  const investedValues = data.map(p => p.invested || 0);
+  const labels = newData.map(p => p.date);
+  const pfValues = newData.map(p => p.value);
+  const ixValues = newData.map(p => p.index_equivalent);
+  const investedValues = newData.map(p => p.invested || 0);
 
   S.benchmarkChart = new Chart(ctx, {
     type: 'line',
@@ -7285,7 +7327,7 @@ async function renderBenchmark() {
           borderColor: '#6c63ff',
           backgroundColor: 'rgba(108, 99, 255, 0.1)',
           fill: true,
-          tension: 0.1, // Делаем линию более плавной
+          tension: 0.1,
           pointRadius: 0,
           borderWidth: 2,
         },
@@ -7319,26 +7361,16 @@ async function renderBenchmark() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: '#8892a4', font: { size: 12 } } },
-        tooltip: { 
-          callbacks: { 
-            label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` 
-          } 
-        }
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } }
       },
       scales: {
-        x: { 
-          ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, 
-          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
-        },
-        y: { 
-          ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, 
-          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
-        }
+        x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: 'rgba(46, 49, 72, 0.3)' } },
+        y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
       }
     }
   });
 
-  // 7. Таблица по годам
+  // 9. Таблица по годам
   const yearly = res.yearly || [];
   const tbody = document.getElementById('benchmark-table-body');
   if (tbody) {
