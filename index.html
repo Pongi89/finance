@@ -7177,53 +7177,60 @@ async function renderBenchmark() {
   if (!statsEl) return;
   statsEl.innerHTML = '<div class="loader">Загрузка...</div>';
 
+  // 1. Получаем данные из бэкенда (он отдает сырые значения с 2019 года)
   const cutoff = getBenchmarkCutoff();
   const today = new Date().toISOString().substring(0, 10);
   localStorage.removeItem('cache_getBenchmarkData');
 
   let res;
   try {
-    res = await apiGet({ action: 'getBenchmarkData', from: cutoff, to: today });
+    res = await apiGet({ action: 'getBenchmarkData', from: '2019-01-01', to: today }); // Берем всё с 2019
   } catch(e) {
     statsEl.innerHTML = '<div class="empty">Ошибка загрузки</div>';
     return;
   }
 
-  const data = res.data || [];
+  let data = res.data || [];
   if (!data.length) {
+    statsEl.innerHTML = '<div class="empty">Нет данных</div>';
+    return;
+  }
+
+  // 2. Находим стартовую точку (первый торговый день в выбранном периоде)
+  let startIndex = data.findIndex(p => p.date >= cutoff);
+  if (startIndex === -1) {
     statsEl.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
     return;
   }
 
-  // ✅ ИЩЕМ ПЕРВУЮ ТОЧКУ, ГДЕ ЕСТЬ И ПОРТФЕЛЬ, И ИНДЕКС
-  let startIdx = -1;
-  for (let i = 0; i < data.length; i++) {
-    if (data[i].value > 0 && data[i].index_equivalent > 0) {
-      startIdx = i;
-      break;
-    }
+  // 3. Отсекаем всё, что было до начала периода
+  data = data.slice(startIndex);
+
+  if (data.length < 2) {
+    statsEl.innerHTML = '<div class="empty">Недостаточно данных за период</div>';
+    return;
   }
 
-  if (startIdx !== -1) {
-    const startValue = data[startIdx].value;
-    const startIndex = data[startIdx].index_equivalent;
-    
-    // Если стартовые значения различаются, масштабируем весь индекс
-    if (Math.abs(startIndex - startValue) > 1) {
-      const scale = startValue / startIndex;
-      for (let i = 0; i < data.length; i++) {
-        data[i].index_equivalent = data[i].index_equivalent * scale;
-      }
-    }
-  }
+  // 4. Синхронизируем стартовые значения (привязываем индекс к портфелю)
+  const startPoint = data[0];
+  const baseValue = startPoint.value;
+  const baseIndex = startPoint.index_equivalent;
+  const baseScale = baseIndex > 0 ? (baseValue / baseIndex) : 1;
 
+  // 5. Пересчитываем индекс, чтобы он на старте в точности совпадал с портфелем
+  data = data.map(p => ({
+    ...p,
+    index_equivalent: p.index_equivalent * baseScale
+  }));
+
+  // 6. Считаем итоговую разницу для плашки
   const lastPoint = data[data.length - 1];
   const pfEnd = lastPoint.value;
-  const ixEnd = lastPoint.index_equivalent || 0;
-  const investedEnd = lastPoint.invested || 0;
+  const ixEnd = lastPoint.index_equivalent;
   
   const diffRub = pfEnd - ixEnd;
   const diffPct = ixEnd > 0 ? (diffRub / ixEnd) * 100 : 0;
+  
   const diffSign = diffRub >= 0 ? '+' : '';
   const diffColor = diffRub >= 0 ? 'c-income' : 'c-expense';
   const diffWord = diffRub >= 0 ? 'обгоняет' : 'отстаёт от';
@@ -7232,14 +7239,19 @@ async function renderBenchmark() {
                       S.benchmarkPeriod === '1y' ? 'последний год' :
                       S.benchmarkPeriod === '3y' ? 'последние 3 года' : 'последние 5 лет';
 
+  // 7. Рендерим плашку (в стиле Snowball)
   statsEl.innerHTML = `
-    <div class="stat-card" style="grid-column:1/-1;background:${diffRub >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffRub >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'}">
-      <div class="stat-label" style="font-size:12px">🎯 Портфель ${diffWord} ${S.benchmarkIndex}</div>
-      <div class="stat-value ${diffColor}" style="font-size:22px">${diffSign}${fmt(diffRub)} <span style="font-size:16px;font-weight:500;opacity:0.8">(${diffSign}${diffPct.toFixed(2)}%)</span></div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">за ${periodLabel}</div>
+    <div class="stat-card" style="grid-column:1/-1;background:${diffRub >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${diffRub >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'};padding:16px 20px">
+      <div style="font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span>🎯 Портфель ${diffWord} ${S.benchmarkIndex} на</span>
+        <strong class="${diffColor}">${diffSign}${fmt(diffRub)}</strong>
+        <strong class="${diffColor}">(${diffSign}${diffPct.toFixed(2)}%)</strong>
+        <span style="color:var(--text2)">за ${periodLabel}</span>
+      </div>
     </div>
   `;
   
+  // 8. Рисуем график
   const canvas = document.getElementById('chart-benchmark');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -7247,7 +7259,7 @@ async function renderBenchmark() {
 
   const labels = data.map(p => p.date);
   const pfValues = data.map(p => p.value);
-  const ixValues = data.map(p => p.index_equivalent || 0);
+  const ixValues = data.map(p => p.index_equivalent);
   const investedValues = data.map(p => p.invested || 0);
   
   S.benchmarkChart = new Chart(ctx, {
@@ -7269,12 +7281,11 @@ async function renderBenchmark() {
           label: S.benchmarkIndex,
           data: ixValues,
           borderColor: '#f6ad55',
-          backgroundColor: 'rgba(246, 173, 85, 0.03)',
+          backgroundColor: 'transparent',
           fill: false,
           tension: 0.2,
           pointRadius: 0,
           borderWidth: 2,
-          borderDash: [6, 4],
         },
         {
           label: 'Вложено',
@@ -7285,7 +7296,7 @@ async function renderBenchmark() {
           tension: 0.2,
           pointRadius: 0,
           borderWidth: 1.5,
-          borderDash: [2, 2],
+          borderDash: [5, 5], // Делаем пунктирной, как в Snowball
         }
       ]
     },
@@ -7295,16 +7306,26 @@ async function renderBenchmark() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: '#8892a4', font: { size: 12 } } },
-        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` } }
+        tooltip: { 
+          callbacks: { 
+            label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` 
+          } 
+        }
       },
       scales: {
-        x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: 'rgba(46, 49, 72, 0.3)' } },
-        y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
+        x: { 
+          ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, 
+          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+        },
+        y: { 
+          ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, 
+          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+        }
       }
     }
   });
 
-  // Таблица по годам
+  // 9. Таблица по годам (оставляем без изменений, она считает доходность в %)
   const yearly = res.yearly || [];
   const tbody = document.getElementById('benchmark-table-body');
   if (tbody) {
