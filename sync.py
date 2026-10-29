@@ -95,20 +95,49 @@ def main():
         else: 
             continue # переводы и прочее
 
-                # Маппинг типа актива
+        # Маппинг типа актива
         inst_type = op.get('instrumentType', '')
         op_currency = op.get('payment', {}).get('currency', 'rub')
         ticker = op.get('ticker', '')
         
+        # ========================================================
+        # ✅ ЛОГИКА ОПРЕДЕЛЕНИЯ ВАЛЮТЫ И НОМИНАЛА
+        # ========================================================
+        final_currency = "RUB"
+        final_face_value = 1000
+        asset_type = 'stock' # значение по умолчанию
+
         if ticker == 'GLDRUB_TOM':
             asset_type = 'gold'
         elif 'money_market' in op.get('classCode', '').lower() or ticker == 'TMON@':
             asset_type = 'money_market'
-        elif inst_type == 'bond': 
-            if op_currency != 'rub': 
+        elif inst_type == 'bond':
+            # ✅ 1. Жёсткая привязка для НОВАТЭК 001P-02 (ISIN: RU000A108G70)
+            if ticker == 'RU000A108G70':
                 asset_type = 'currency_bond'
-            else: 
-                asset_type = 'bond'
+                final_currency = 'USD'
+                final_face_value = 100
+            else:
+                # ✅ 2. Проверка для остальных замещающих облигаций
+                # Если сделка в рублях, но цена за единицу больше 2000 — это замещайка
+                payment_val = parse_quotation(op.get('payment', {}))
+                qty = float(op.get('quantity', 0))
+                price_per_unit = abs(payment_val) / qty if qty > 0 else 0
+                
+                if op_currency == 'rub' and price_per_unit > 2000:
+                    asset_type = 'currency_bond'
+                    final_currency = 'USD'
+                    final_face_value = 1000
+                elif op_currency != 'rub':
+                    # Валютная облигация (не замещающая)
+                    asset_type = 'currency_bond'
+                    final_currency = op_currency.upper()
+                    final_face_value = 1000
+                else:
+                    # Обычная рублёвая облигация
+                    asset_type = 'bond'
+                    final_currency = 'RUB'
+                    final_face_value = 1000
         elif inst_type == 'etf': 
             asset_type = 'etf'
         else: 
@@ -132,7 +161,7 @@ def main():
             "ticker": op.get('ticker', ''),
             "name": op.get('name', ''),
             "asset_type": asset_type,
-            "currency": "RUB",
+            "currency": final_currency,          # <-- ИСПРАВЛЕНО
             "quantity": quantity,
             "price": price,
             "amount": amount,
@@ -140,7 +169,7 @@ def main():
             "tax": 0,
             "account": "Т-Банк",
             "comment": op.get('description', ''),
-            "face_value": 1000
+            "face_value": final_face_value       # <-- ИСПРАВЛЕНО
         })
 
     # 4. Отправляем в Apps Script
