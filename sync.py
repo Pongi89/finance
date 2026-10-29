@@ -15,6 +15,20 @@ HEADERS = {
     'Content-Type': 'application/json'
 }
 
+# ========================================================
+# ✅ ЧЕРНЫЙ СПИСОК ТИКЕРОВ (ИСКЛЮЧЕНИЯ)
+# ========================================================
+EXCLUDED_TICKERS = {
+    'FXDE', 'FXGD', 'IE00BNC2D728', 'FXUS', 'TSN', 'LEG', 'T', 'NKE', 'CSCO', 'VZ', 
+    'US09247X1019', 'PPL', 'TROW', 'APH', 'FMC', 'RTX', 'SPGI', 'O', 'US6826801036', 
+    'MA', 'VLO', 'JNJ', 'V', 'MSFT', 'INTC', 'PG', 'MMM', 'CVX', 'DHI', 'WELL', 'RMD', 
+    'SCHW', 'MSCI', 'ABBV', 'HUM', 'UNH', 'GPN', 'MRK', 'MMC', 'ALL', 'US30231G1022', 
+    'IVZ', 'MKC', 'CHD', 'SHW', 'MSM', 'A', 'TMO', 'AMT', 'CME', 'PGR', 'USB', 'FAST', 
+    'WING', 'GD', 'CMCSA', 'AWK', 'SPG', 'KIM', 'UNM', 'HD', 'SWKS', 'PAYX', 'ET', 
+    'USD000UTSTOM', 'EL', 'MCO', 'PRU', 'CNYRUB_TOM', 'WBD', 'TSVT', 'TSPX', 'FXDM', 
+    'SBSP', 'VTBE', 'VTBH', 'FXIM', 'TECH', 'FXCN', 'TBIO'
+}
+
 def tinkoff_request(method, payload):
     url = f'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.{method}'
     resp = requests.post(url, headers=HEADERS, json=payload, verify=False)
@@ -71,12 +85,21 @@ def main():
 
     # 3. Преобразуем в формат для Apps Script
     import_data = []
+    skipped_count = 0
+    
     for op in all_ops:
         if op.get('state') != 'OPERATION_STATE_EXECUTED':
             continue
             
         # ✅ Пропускаем заблокированные активы (замороженные)
         if op.get('blocked', False): 
+            continue
+
+        ticker = op.get('ticker', '')
+        
+        # ✅ ПРОПУСКАЕМ ТИКЕРЫ ИЗ ЧЕРНОГО СПИСКА
+        if ticker in EXCLUDED_TICKERS:
+            skipped_count += 1
             continue
 
         op_type = op.get('type', '')
@@ -98,7 +121,6 @@ def main():
         # Маппинг типа актива
         inst_type = op.get('instrumentType', '')
         op_currency = op.get('payment', {}).get('currency', 'rub')
-        ticker = op.get('ticker', '')
         
         # ========================================================
         # ✅ ЛОГИКА ОПРЕДЕЛЕНИЯ ВАЛЮТЫ И НОМИНАЛА
@@ -119,7 +141,6 @@ def main():
                 final_face_value = 100
             else:
                 # ✅ 2. Проверка для остальных замещающих облигаций
-                # Если сделка в рублях, но цена за единицу больше 2000 — это замещайка
                 payment_val = parse_quotation(op.get('payment', {}))
                 qty = float(op.get('quantity', 0))
                 price_per_unit = abs(payment_val) / qty if qty > 0 else 0
@@ -161,7 +182,7 @@ def main():
             "ticker": op.get('ticker', ''),
             "name": op.get('name', ''),
             "asset_type": asset_type,
-            "currency": final_currency,          # <-- ИСПРАВЛЕНО
+            "currency": final_currency,          
             "quantity": quantity,
             "price": price,
             "amount": amount,
@@ -169,8 +190,10 @@ def main():
             "tax": 0,
             "account": "Т-Банк",
             "comment": op.get('description', ''),
-            "face_value": final_face_value       # <-- ИСПРАВЛЕНО
+            "face_value": final_face_value       
         })
+
+    print(f"Отфильтровано (в черном списке): {skipped_count}")
 
     # 4. Отправляем в Apps Script
     if import_data:
