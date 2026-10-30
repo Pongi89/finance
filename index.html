@@ -8,6 +8,9 @@
  
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
+    .analytics-subtab-content {
+  animation: fadeIn 0.2s ease;
+}
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --bg: #0f1117; --surface: #1a1d27; --surface2: #222536; --border: #2e3148;
@@ -1174,14 +1177,19 @@ th.sortable.sorted-desc::after {
 
   <!-- ============ ПОДВКЛАДКА: АНАЛИТИКА ============ -->
   <div id="inv-tab-analytics" class="inv-tab-content" style="display:none">
-      <!-- ПОДРАЗДЕЛ: РОСТ -->
-  <div style="margin-bottom: 24px;">
-    <h3 style="font-size: 16px; color: var(--text); margin-bottom: 16px;">📈 Рост</h3>
+  
+  <!-- Переключатель подвкладок -->
+  <div class="period-row" style="margin-bottom: 16px;">
+    <button class="period-btn active" onclick="setAnalyticsSubTab('growth', this)">📈 Рост</button>
+    <button class="period-btn" onclick="setAnalyticsSubTab('dividends', this)">💰 Дивиденды</button>
+  </div>
+
+  <!-- ============ ПОДВКЛАДКА: РОСТ ============ -->
+  <div id="analytics-subtab-growth" class="analytics-subtab-content">
     
-    <!-- График 1: Стоимость портфеля (бывший vs Индекс) -->
+    <!-- График 1: Стоимость портфеля -->
     <div class="card">
       <div class="card-title">Стоимость портфеля</div>
-      <!-- Сюда мы перенесем логику из вкладки vs Индекс позже. Пока заглушка -->
       <div class="chart-wrap-tall"><canvas id="chart-growth-value"></canvas></div>
     </div>
 
@@ -1190,7 +1198,8 @@ th.sortable.sorted-desc::after {
       <div class="card-title">Прибыль портфеля</div>
       <div class="chart-wrap-tall"><canvas id="chart-growth-profit"></canvas></div>
     </div>
-  </div>
+    
+    <!-- Старые графики структуры (пока оставим их здесь, чтобы не потерять) -->
     <div class="charts-row">
       <div class="card">
         <div class="card-title">Структура по типам активов</div>
@@ -1205,16 +1214,24 @@ th.sortable.sorted-desc::after {
       <div class="card-title">Структура по счетам</div>
       <div class="chart-wrap"><canvas id="chart-inv-accounts"></canvas></div>
     </div>
-   <div class="card">
-  <div class="card-title">📊 Детальная таблица позиций</div>
-  <div id="inv-portfolio-detailed"><div class="loader">Загрузка...</div></div>
-</div>
-
-<div class="card">
-  <div class="card-title">🏆 Топ-10 позиций</div>
-  <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
-</div>
+    <div class="card">
+      <div class="card-title">📊 Детальная таблица позиций</div>
+      <div id="inv-portfolio-detailed"><div class="loader">Загрузка...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 Топ-10 позиций</div>
+      <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
+    </div>
   </div>
+
+  <!-- ============ ПОДВКЛАДКА: ДИВИДЕНДЫ ============ -->
+  <div id="analytics-subtab-dividends" class="analytics-subtab-content" style="display: none;">
+    <div class="card">
+      <div class="empty">Блок «Дивиденды» в разработке...</div>
+    </div>
+  </div>
+
+</div>
 <!-- ============ ПОДВКЛАДКА: СРАВНЕНИЕ С ИНДЕКСОМ ============ -->
 <div id="inv-tab-benchmark" class="inv-tab-content" style="display:none">
   
@@ -7930,6 +7947,29 @@ function sortClosed(key) {
     
   } catch (e) {
     console.error('Ошибка загрузки прибыли:', e);
+  }
+}
+  function setAnalyticsSubTab(tab, btn) {
+  // Переключаем активную кнопку
+  document.querySelectorAll('#inv-tab-analytics > .period-row .period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  // Скрываем все подвкладки
+  document.querySelectorAll('.analytics-subtab-content').forEach(el => el.style.display = 'none');
+
+  // Показываем нужную
+  const target = document.getElementById('analytics-subtab-' + tab);
+  if (target) target.style.display = 'block';
+
+  // Если открыли "Рост" — перерисовываем графики (чтобы Chart.js корректно подхватил размеры)
+  if (tab === 'growth') {
+    renderGrowthTab();
+    // Если у вас есть функции для перерисовки старых графиков (структуры), вызывайте их тут
+    // renderInvestmentsAnalytics(); 
+  }
+  
+  if (tab === 'dividends') {
+    // Здесь позже вызовем renderDividendsTab();
   }
 }
 </script>
