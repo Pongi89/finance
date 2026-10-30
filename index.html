@@ -1174,6 +1174,23 @@ th.sortable.sorted-desc::after {
 
   <!-- ============ ПОДВКЛАДКА: АНАЛИТИКА ============ -->
   <div id="inv-tab-analytics" class="inv-tab-content" style="display:none">
+      <!-- ПОДРАЗДЕЛ: РОСТ -->
+  <div style="margin-bottom: 24px;">
+    <h3 style="font-size: 16px; color: var(--text); margin-bottom: 16px;">📈 Рост</h3>
+    
+    <!-- График 1: Стоимость портфеля (бывший vs Индекс) -->
+    <div class="card">
+      <div class="card-title">Стоимость портфеля</div>
+      <!-- Сюда мы перенесем логику из вкладки vs Индекс позже. Пока заглушка -->
+      <div class="chart-wrap-tall"><canvas id="chart-growth-value"></canvas></div>
+    </div>
+
+    <!-- График 2: Прибыль портфеля -->
+    <div class="card">
+      <div class="card-title">Прибыль портфеля</div>
+      <div class="chart-wrap-tall"><canvas id="chart-growth-profit"></canvas></div>
+    </div>
+  </div>
     <div class="charts-row">
       <div class="card">
         <div class="card-title">Структура по типам активов</div>
@@ -7835,6 +7852,82 @@ function sortClosed(key) {
     closedSortState.asc = true; // по умолчанию по возрастанию
   }
   renderInvestmentsClosed();
+}
+  async function renderGrowthTab() {
+  const canvas = document.getElementById('chart-growth-profit');
+  if (!canvas) return;
+
+  try {
+    const today = new Date().toISOString().substring(0, 10);
+    const res = await apiGet({ action: 'getPortfolioProfitData', from: '2019-01-01', to: today });
+    const data = res.data || [];
+    
+    if (!data.length) {
+      canvas.parentElement.innerHTML = '<div class="empty">Нет данных</div>';
+      return;
+    }
+
+    const labels = data.map(p => p.date);
+    const profitValues = data.map(p => p.profit);
+    
+    // Найдем максимум и минимум для настройки оси
+    const maxProfit = Math.max(...profitValues);
+    const minProfit = Math.min(...profitValues);
+
+    const ctx = canvas.getContext('2d');
+    if (window._growthProfitChart) window._growthProfitChart.destroy();
+
+    window._growthProfitChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Прибыль',
+          data: profitValues,
+          borderColor: '#48bb78', // Зеленый
+          backgroundColor: 'rgba(72,187,120,0.1)',
+          fill: true,
+          tension: 0.1,
+          pointRadius: 0,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: { 
+            callbacks: { 
+              label: (c) => {
+                const val = c.parsed.y;
+                const sign = val > 0 ? '+' : '';
+                return `${sign}${fmt(val)}`;
+              }
+            } 
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+          y: { 
+            ticks: { 
+              color: '#8892a4', 
+              font: { size: 10 }, 
+              callback: (val) => {
+                const sign = val > 0 ? '+' : '';
+                return sign + fmtShort(val);
+              }
+            }, 
+            grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+          }
+        }
+      }
+    });
+    
+  } catch (e) {
+    console.error('Ошибка загрузки прибыли:', e);
+  }
 }
 </script>
 </body>
