@@ -5326,7 +5326,10 @@ function setInvestmentsTab(tab, btn) {
   if (tab === 'closed') renderInvestmentsClosed();
   if (tab === 'deals') renderInvestmentsDeals();
   if (tab === 'payments') renderInvestmentsPayments();
-  if (tab === 'analytics') renderInvestmentsAnalytics();
+    if (tab === 'analytics') {
+    renderInvestmentsAnalytics();
+    renderGrowthTab(); // <-- Добавили вызов
+  }
   if (tab === 'benchmark') renderBenchmark();
   if (tab === 'add') initInvestmentsAddForm();
 }
