@@ -7874,8 +7874,14 @@ function sortClosed(key) {
   renderInvestmentsClosed();
 }
   async function renderGrowthTab() {
-  const canvas = document.getElementById('chart-growth-profit');
-  if (!canvas) return;
+  const canvasProfit = document.getElementById('chart-growth-profit');
+  if (!canvasProfit) return;
+
+  // Если контейнер скрыт — подождём чуть-чуть, пока CSS применит display: block
+  if (canvasProfit.offsetParent === null) {
+    setTimeout(renderGrowthTab, 50);
+    return;
+  }
 
   try {
     const today = new Date().toISOString().substring(0, 10);
@@ -7883,18 +7889,14 @@ function sortClosed(key) {
     const data = res.data || [];
     
     if (!data.length) {
-      canvas.parentElement.innerHTML = '<div class="empty">Нет данных</div>';
+      canvasProfit.parentElement.innerHTML = '<div class="empty">Нет данных</div>';
       return;
     }
 
     const labels = data.map(p => p.date);
     const profitValues = data.map(p => p.profit);
-    
-    // Найдем максимум и минимум для настройки оси
-    const maxProfit = Math.max(...profitValues);
-    const minProfit = Math.min(...profitValues);
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvasProfit.getContext('2d');
     if (window._growthProfitChart) window._growthProfitChart.destroy();
 
     window._growthProfitChart = new Chart(ctx, {
@@ -7904,7 +7906,7 @@ function sortClosed(key) {
         datasets: [{
           label: 'Прибыль',
           data: profitValues,
-          borderColor: '#48bb78', // Зеленый
+          borderColor: '#48bb78',
           backgroundColor: 'rgba(72,187,120,0.1)',
           fill: true,
           tension: 0.1,
