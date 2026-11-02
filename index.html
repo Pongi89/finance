@@ -1082,7 +1082,6 @@ th.sortable.sorted-desc::after {
   <button class="period-btn" onclick="setInvestmentsTab('deals', this)">💼 Сделки</button>
   <button class="period-btn" onclick="setInvestmentsTab('payments', this)">💰 Выплаты</button>
   <button class="period-btn" onclick="setInvestmentsTab('analytics', this)">📈 Аналитика</button>
-  <button class="period-btn" onclick="setInvestmentsTab('benchmark', this)">🎯 vs Индекс</button>
   <button class="period-btn" onclick="setInvestmentsTab('add', this)">➕ Операция</button>
     
 </div>
@@ -1184,13 +1183,31 @@ th.sortable.sorted-desc::after {
     <button class="period-btn" onclick="setAnalyticsSubTab('dividends', this)">💰 Дивиденды</button>
   </div>
 
-  <!-- ============ ПОДВКЛАДКА: РОСТ ============ -->
+    <!-- ============ ПОДВКЛАДКА: РОСТ ============ -->
   <div id="analytics-subtab-growth" class="analytics-subtab-content">
     
+    <!-- Период (скопировано из vs Индекс) -->
+    <div class="period-row">
+      <button class="period-btn active" onclick="setBenchmarkPeriod('1y',this)">1 год</button>
+      <button class="period-btn" onclick="setBenchmarkPeriod('3y',this)">3 года</button>
+      <button class="period-btn" onclick="setBenchmarkPeriod('5y',this)">5 лет</button>
+      <button class="period-btn" onclick="setBenchmarkPeriod('all',this)">Всё время</button>
+    </div>
+    
+    <!-- Выбор индекса (скопировано из vs Индекс) -->
+    <div class="period-row">
+      <span style="font-size:12px;color:var(--text2);margin-right:8px;line-height:32px">Индекс:</span>
+      <button class="period-btn active" onclick="setBenchmarkIndex('MCFTR',this)">MCFTR (полная доходность)</button>
+      <button class="period-btn" onclick="setBenchmarkIndex('IMOEX',this)">IMOEX (цена)</button>
+    </div>
+
+    <!-- Плашка со статистикой -->
+    <div class="stats-row" id="benchmark-stats"></div>
+
     <!-- График 1: Стоимость портфеля -->
     <div class="card">
       <div class="card-title">Стоимость портфеля</div>
-      <div class="chart-wrap-tall"><canvas id="chart-growth-value"></canvas></div>
+      <div class="chart-wrap-tall"><canvas id="chart-benchmark"></canvas></div>
     </div>
 
     <!-- График 2: Прибыль портфеля -->
@@ -1232,49 +1249,7 @@ th.sortable.sorted-desc::after {
   </div>
 
 </div>
-<!-- ============ ПОДВКЛАДКА: СРАВНЕНИЕ С ИНДЕКСОМ ============ -->
-<div id="inv-tab-benchmark" class="inv-tab-content" style="display:none">
-  
-  <!-- Период -->
-  <div class="period-row">
-    <button class="period-btn active" onclick="setBenchmarkPeriod('1y',this)">1 год</button>
-    <button class="period-btn" onclick="setBenchmarkPeriod('3y',this)">3 года</button>
-    <button class="period-btn" onclick="setBenchmarkPeriod('5y',this)">5 лет</button>
-    <button class="period-btn" onclick="setBenchmarkPeriod('all',this)">Всё время</button>
-  </div>
-  
-  <!-- Выбор индекса -->
-  <div class="period-row">
-    <span style="font-size:12px;color:var(--text2);margin-right:8px;line-height:32px">Индекс:</span>
-    <button class="period-btn active" onclick="setBenchmarkIndex('MCFTR',this)">MCFTR (полная доходность)</button>
-    <button class="period-btn" onclick="setBenchmarkIndex('IMOEX',this)">IMOEX (цена)</button>
-  </div>
-  
-  <!-- Сводные метрики -->
-  <div class="stats-row" id="benchmark-stats"></div>
-  
-  <!-- График -->
-  <div class="card">
-    <div class="card-title">Динамика портфеля vs индекса</div>
-    <div class="chart-wrap-tall"><canvas id="chart-benchmark"></canvas></div>
-  </div>
-  
-  <!-- Таблица по годам -->
-  <div class="card">
-    <div class="card-title">По годам</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr>
-          <th>Год</th>
-          <th>Портфель</th>
-          <th>Индекс</th>
-          <th>Разница</th>
-        </tr></thead>
-        <tbody id="benchmark-table-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
+
   <!-- ============ ПОДВКЛАДКА: + ОПЕРАЦИЯ ============ -->
   <div id="inv-tab-add" class="inv-tab-content" style="display:none">
     <div class="card">
@@ -5345,7 +5320,7 @@ function setInvestmentsTab(tab, btn) {
   if (tab === 'payments') renderInvestmentsPayments();
     if (tab === 'analytics') {
   renderInvestmentsAnalytics();
-  renderGrowthValue(); // <-- Добавили
+  renderBenchmark(); // <-- Добавили
   renderGrowthTab();   // <-- Добавили
 }
   if (tab === 'benchmark') renderBenchmark();
@@ -7953,74 +7928,7 @@ function sortClosed(key) {
     console.error('Ошибка загрузки прибыли:', e);
   }
 }
-  async function renderGrowthValue() {
-  const canvas = document.getElementById('chart-growth-value');
-  if (!canvas) return;
   
-  const parent = canvas.parentElement;
-  
-  // Принудительно задаем размеры контейнеру перед отрисовкой
-  parent.style.height = '280px';
-  parent.style.width = '100%';
-  parent.style.position = 'relative';
-
-  try {
-    const cutoff = getBenchmarkCutoff();
-    const today = new Date().toISOString().substring(0, 10);
-    
-    // Берем данные за все время
-    const res = await apiGet({ action: 'getBenchmarkData', from: '2019-01-01', to: today });
-    let data = res.data || [];
-    
-    // Отсекаем период
-    let startIndex = data.findIndex(p => p.date >= cutoff);
-    if (startIndex === -1) {
-        canvas.parentElement.innerHTML = '<div class="empty">Нет данных</div>';
-        return;
-    }
-    data = data.slice(startIndex);
-
-    const labels = data.map(p => p.date);
-    const pfValues = data.map(p => p.value);
-
-    const ctx = canvas.getContext('2d');
-    if (window._growthValueChart) window._growthValueChart.destroy();
-
-    // Отрисовка через requestAnimationFrame для гарантии применения стилей
-    requestAnimationFrame(() => {
-      window._growthValueChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Стоимость портфеля',
-            data: pfValues,
-            borderColor: '#6c63ff',
-            backgroundColor: 'rgba(108,99,255,0.1)',
-            fill: true,
-            tension: 0.1,
-            pointRadius: 0,
-            borderWidth: 2,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: (c) => fmt(c.parsed.y) } }
-          },
-          scales: {
-            x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
-            y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
-          }
-        }
-      });
-    });
-  } catch(e) {
-    console.error('Ошибка загрузки стоимости:', e);
-  }
-}
   function setAnalyticsSubTab(tab, btn) {
   // Переключаем активную кнопку
   document.querySelectorAll('#inv-tab-analytics > .period-row .period-btn').forEach(b => b.classList.remove('active'));
@@ -8036,7 +7944,7 @@ function sortClosed(key) {
   // Если открыли "Рост" — перерисовываем графики (чтобы Chart.js корректно подхватил размеры)
   if (tab === 'growth') {
     renderGrowthTab();
-    renderGrowthValue(); // <-- Добавили
+    renderBenchmark()(); // <-- Добавили
     // Если у вас есть функции для перерисовки старых графиков (структуры), вызывайте их тут
     // renderInvestmentsAnalytics(); 
   }
