@@ -7875,21 +7875,10 @@ function sortClosed(key) {
 }
   async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
-     // --- ОТЛАДКА ---
-  console.log('Вызов renderGrowthTab');
-  console.log('Найден canvas?', !!canvasProfit);
-  if (canvasProfit) {
-    console.log('Размеры контейнера:', canvasProfit.offsetWidth, canvasProfit.offsetHeight);
-    console.log('Видим?', canvasProfit.offsetParent !== null);
-  }
-  // ---------------
   if (!canvasProfit) return;
 
-  // Если контейнер скрыт — подождём чуть-чуть, пока CSS применит display: block
-  if (canvasProfit.offsetParent === null) {
-    setTimeout(renderGrowthTab, 50);
-    return;
-  }
+  // Ждем, пока CSS применит display: block и контейнер обретет высоту
+  await new Promise(resolve => setTimeout(resolve, 100));
 
   try {
     const today = new Date().toISOString().substring(0, 10);
@@ -7959,6 +7948,61 @@ function sortClosed(key) {
     console.error('Ошибка загрузки прибыли:', e);
   }
 }
+  async function renderGrowthValue() {
+  const canvas = document.getElementById('chart-growth-value');
+  if (!canvas) return;
+  
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  try {
+    // Берем данные из уже существующего бенчмарка
+    const cutoff = getBenchmarkCutoff();
+    const today = new Date().toISOString().substring(0, 10);
+    const res = await apiGet({ action: 'getBenchmarkData', from: '2019-01-01', to: today });
+    let data = res.data || [];
+    
+    let startIndex = data.findIndex(p => p.date >= cutoff);
+    if (startIndex === -1) return;
+    data = data.slice(startIndex);
+
+    const labels = data.map(p => p.date);
+    const pfValues = data.map(p => p.value);
+
+    const ctx = canvas.getContext('2d');
+    if (window._growthValueChart) window._growthValueChart.destroy();
+
+    window._growthValueChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Стоимость портфеля',
+          data: pfValues,
+          borderColor: '#6c63ff',
+          backgroundColor: 'rgba(108,99,255,0.1)',
+          fill: true,
+          tension: 0.1,
+          pointRadius: 0,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => fmt(c.parsed.y) } }
+        },
+        scales: {
+          x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+          y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
+        }
+      }
+    });
+  } catch(e) {
+    console.error('Ошибка загрузки стоимости:', e);
+  }
+}
   function setAnalyticsSubTab(tab, btn) {
   // Переключаем активную кнопку
   document.querySelectorAll('#inv-tab-analytics > .period-row .period-btn').forEach(b => b.classList.remove('active'));
@@ -7974,6 +8018,7 @@ function sortClosed(key) {
   // Если открыли "Рост" — перерисовываем графики (чтобы Chart.js корректно подхватил размеры)
   if (tab === 'growth') {
     renderGrowthTab();
+    renderGrowthValue(); // <-- Добавили
     // Если у вас есть функции для перерисовки старых графиков (структуры), вызывайте их тут
     // renderInvestmentsAnalytics(); 
   }
