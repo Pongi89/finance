@@ -7876,9 +7876,11 @@ function sortClosed(key) {
   async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
   if (!canvasProfit) return;
-
-  // Ждем, пока CSS применит display: block и контейнер обретет высоту
-  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  const parent = canvasProfit.parentElement;
+  parent.style.height = '280px';
+  parent.style.width = '100%';
+  parent.style.position = 'relative';
 
   try {
     const today = new Date().toISOString().substring(0, 10);
@@ -7886,7 +7888,7 @@ function sortClosed(key) {
     const data = res.data || [];
     
     if (!data.length) {
-      canvasProfit.parentElement.innerHTML = '<div class="empty">Нет данных</div>';
+      parent.innerHTML = '<div class="empty">Нет данных</div>';
       return;
     }
 
@@ -7896,52 +7898,54 @@ function sortClosed(key) {
     const ctx = canvasProfit.getContext('2d');
     if (window._growthProfitChart) window._growthProfitChart.destroy();
 
-    window._growthProfitChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Прибыль',
-          data: profitValues,
-          borderColor: '#48bb78',
-          backgroundColor: 'rgba(72,187,120,0.1)',
-          fill: true,
-          tension: 0.1,
-          pointRadius: 0,
-          borderWidth: 2,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: { 
-            callbacks: { 
-              label: (c) => {
-                const val = c.parsed.y;
-                const sign = val > 0 ? '+' : '';
-                return `${sign}${fmt(val)}`;
-              }
-            } 
-          }
+    requestAnimationFrame(() => {
+      window._growthProfitChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Прибыль',
+            data: profitValues,
+            borderColor: '#48bb78',
+            backgroundColor: 'rgba(72,187,120,0.1)',
+            fill: true,
+            tension: 0.1,
+            pointRadius: 0,
+            borderWidth: 2,
+          }]
         },
-        scales: {
-          x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
-          y: { 
-            ticks: { 
-              color: '#8892a4', 
-              font: { size: 10 }, 
-              callback: (val) => {
-                const sign = val > 0 ? '+' : '';
-                return sign + fmtShort(val);
-              }
-            }, 
-            grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: { 
+              callbacks: { 
+                label: (c) => {
+                  const val = c.parsed.y;
+                  const sign = val > 0 ? '+' : '';
+                  return `${sign}${fmt(val)}`;
+                }
+              } 
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+            y: { 
+              ticks: { 
+                color: '#8892a4', 
+                font: { size: 10 }, 
+                callback: (val) => {
+                  const sign = val > 0 ? '+' : '';
+                  return sign + fmtShort(val);
+                }
+              }, 
+              grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+            }
           }
         }
-      }
+      });
     });
     
   } catch (e) {
@@ -7952,17 +7956,27 @@ function sortClosed(key) {
   const canvas = document.getElementById('chart-growth-value');
   if (!canvas) return;
   
-  await new Promise(resolve => setTimeout(resolve, 100));
+  const parent = canvas.parentElement;
+  
+  // Принудительно задаем размеры контейнеру перед отрисовкой
+  parent.style.height = '280px';
+  parent.style.width = '100%';
+  parent.style.position = 'relative';
 
   try {
-    // Берем данные из уже существующего бенчмарка
     const cutoff = getBenchmarkCutoff();
     const today = new Date().toISOString().substring(0, 10);
+    
+    // Берем данные за все время
     const res = await apiGet({ action: 'getBenchmarkData', from: '2019-01-01', to: today });
     let data = res.data || [];
     
+    // Отсекаем период
     let startIndex = data.findIndex(p => p.date >= cutoff);
-    if (startIndex === -1) return;
+    if (startIndex === -1) {
+        canvas.parentElement.innerHTML = '<div class="empty">Нет данных</div>';
+        return;
+    }
     data = data.slice(startIndex);
 
     const labels = data.map(p => p.date);
@@ -7971,33 +7985,36 @@ function sortClosed(key) {
     const ctx = canvas.getContext('2d');
     if (window._growthValueChart) window._growthValueChart.destroy();
 
-    window._growthValueChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Стоимость портфеля',
-          data: pfValues,
-          borderColor: '#6c63ff',
-          backgroundColor: 'rgba(108,99,255,0.1)',
-          fill: true,
-          tension: 0.1,
-          pointRadius: 0,
-          borderWidth: 2,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: (c) => fmt(c.parsed.y) } }
+    // Отрисовка через requestAnimationFrame для гарантии применения стилей
+    requestAnimationFrame(() => {
+      window._growthValueChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Стоимость портфеля',
+            data: pfValues,
+            borderColor: '#6c63ff',
+            backgroundColor: 'rgba(108,99,255,0.1)',
+            fill: true,
+            tension: 0.1,
+            pointRadius: 0,
+            borderWidth: 2,
+          }]
         },
-        scales: {
-          x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
-          y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c) => fmt(c.parsed.y) } }
+          },
+          scales: {
+            x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+            y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => fmtShort(v) }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
+          }
         }
-      }
+      });
     });
   } catch(e) {
     console.error('Ошибка загрузки стоимости:', e);
