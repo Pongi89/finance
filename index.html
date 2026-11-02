@@ -5344,9 +5344,10 @@ function setInvestmentsTab(tab, btn) {
   if (tab === 'deals') renderInvestmentsDeals();
   if (tab === 'payments') renderInvestmentsPayments();
     if (tab === 'analytics') {
-    renderInvestmentsAnalytics();
-    renderGrowthTab(); // <-- Добавили вызов
-  }
+  renderInvestmentsAnalytics();
+  renderGrowthValue(); // <-- Добавили
+  renderGrowthTab();   // <-- Добавили
+}
   if (tab === 'benchmark') renderBenchmark();
   if (tab === 'add') initInvestmentsAddForm();
 }
