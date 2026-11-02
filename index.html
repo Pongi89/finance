@@ -7875,6 +7875,14 @@ function sortClosed(key) {
 }
   async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
+     // --- ОТЛАДКА ---
+  console.log('Вызов renderGrowthTab');
+  console.log('Найден canvas?', !!canvasProfit);
+  if (canvasProfit) {
+    console.log('Размеры контейнера:', canvasProfit.offsetWidth, canvasProfit.offsetHeight);
+    console.log('Видим?', canvasProfit.offsetParent !== null);
+  }
+  // ---------------
   if (!canvasProfit) return;
 
   // Если контейнер скрыт — подождём чуть-чуть, пока CSS применит display: block
