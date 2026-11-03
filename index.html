@@ -7853,21 +7853,23 @@ function sortClosed(key) {
   async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
   if (!canvasProfit) {
-     console.error('Не найден canvas chart-growth-profit');
-     return;
+    console.warn('❌ Canvas chart-growth-profit не найден!');
+    return;
   }
-  const parent = canvasProfit.parentElement;
-  parent.style.height = '280px';
-  parent.style.width = '100%';
-  parent.style.position = 'relative';
+  
+  console.log('✅ Canvas найден, запускаем запрос getPortfolioProfitData...');
 
   try {
     const today = new Date().toISOString().substring(0, 10);
     const res = await apiGet({ action: 'getPortfolioProfitData', from: '2019-01-01', to: today });
+    
+    console.log('Ответ от бэкенда:', res);
+
     const data = res.data || [];
     
     if (!data.length) {
-      parent.innerHTML = '<div class="empty">Нет данных</div>';
+      console.warn('⚠️ Бэкенд вернул 0 точек');
+      canvasProfit.parentElement.innerHTML = '<div class="empty">Нет данных (бэкенд вернул 0)</div>';
       return;
     }
 
@@ -7877,61 +7879,42 @@ function sortClosed(key) {
     const ctx = canvasProfit.getContext('2d');
     if (window._growthProfitChart) window._growthProfitChart.destroy();
 
-    requestAnimationFrame(() => {
-      window._growthProfitChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Прибыль',
-            data: profitValues,
-            borderColor: '#48bb78',
-            backgroundColor: 'rgba(72,187,120,0.1)',
-            fill: true,
-            tension: 0.1,
-            pointRadius: 0,
-            borderWidth: 2,
-          }]
+    window._growthProfitChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Прибыль',
+          data: profitValues,
+          borderColor: '#48bb78',
+          backgroundColor: 'rgba(72,187,120,0.1)',
+          fill: true,
+          tension: 0.1,
+          pointRadius: 0,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => `${c.parsed.y > 0 ? '+' : ''}${fmt(c.parsed.y)}` } }
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { display: false },
-            tooltip: { 
-              callbacks: { 
-                label: (c) => {
-                  const val = c.parsed.y;
-                  const sign = val > 0 ? '+' : '';
-                  return `${sign}${fmt(val)}`;
-                }
-              } 
-            }
-          },
-          scales: {
-            x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
-            y: { 
-              ticks: { 
-                color: '#8892a4', 
-                font: { size: 10 }, 
-                callback: (val) => {
-                  const sign = val > 0 ? '+' : '';
-                  return sign + fmtShort(val);
-                }
-              }, 
-              grid: { color: 'rgba(46, 49, 72, 0.3)' } 
-            }
-          }
+        scales: {
+          x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+          y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => `${v > 0 ? '+' : ''}${fmtShort(v)}` }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
         }
-      });
+      }
     });
     
+    console.log('✅ График прибыли успешно построен!');
+    
   } catch (e) {
-    console.error('Ошибка загрузки прибыли:', e);
+    console.error('❌ Ошибка загрузки прибыли:', e);
+    canvasProfit.parentElement.innerHTML = '<div class="empty">Ошибка загрузки</div>';
   }
 }
-  
   function setAnalyticsSubTab(tab, btn) {
   // Переключаем активную кнопку
   document.querySelectorAll('#inv-tab-analytics > .period-row .period-btn').forEach(b => b.classList.remove('active'));
