@@ -7852,25 +7852,43 @@ function sortClosed(key) {
  
   async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
-  if (!canvasProfit) {
-    console.warn('❌ Canvas chart-growth-profit не найден!');
-    return;
-  }
-  
-  console.log('✅ Canvas найден, запускаем запрос getPortfolioProfitData...');
+  if (!canvasProfit) return;
 
   try {
     const today = new Date().toISOString().substring(0, 10);
     const res = await apiGet({ action: 'getPortfolioProfitData', from: '2019-01-01', to: today });
-    
-    console.log('Ответ от бэкенда:', res);
-
     const data = res.data || [];
     
     if (!data.length) {
-      console.warn('⚠️ Бэкенд вернул 0 точек');
-      canvasProfit.parentElement.innerHTML = '<div class="empty">Нет данных (бэкенд вернул 0)</div>';
+      canvasProfit.parentElement.innerHTML = '<div class="empty">Нет данных</div>';
       return;
+    }
+
+    // Берем первую и последнюю точку для расчета общей прибыли
+    const firstPoint = data[0];
+    const lastPoint = data[data.length - 1];
+    
+    const totalProfit = lastPoint.profit;
+    // Процент прибыли считаем от вложенных средств на конец периода
+    const totalInvested = lastPoint.invested;
+    const profitPct = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
+    
+    const sign = totalProfit >= 0 ? '+' : '';
+    const colorClass = totalProfit >= 0 ? 'c-income' : 'c-expense';
+
+    // Рисуем плашку сверху (как в Snowball)
+    const statsEl = document.getElementById('profit-stats');
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div class="stat-card" style="grid-column:1/-1;background:${totalProfit >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${totalProfit >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'};padding:16px 20px">
+          <div style="font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span>🎯 Прибыль портфеля:</span>
+            <strong class="${colorClass}">${sign}${fmt(totalProfit)}</strong>
+            <strong class="${colorClass}">(${sign}${profitPct.toFixed(2)}%)</strong>
+            <span style="color:var(--text2)">за всё время</span>
+          </div>
+        </div>
+      `;
     }
 
     const labels = data.map(p => p.date);
@@ -7886,7 +7904,7 @@ function sortClosed(key) {
         datasets: [{
           label: 'Прибыль',
           data: profitValues,
-          borderColor: '#48bb78',
+          borderColor: '#48bb78', // Зеленый
           backgroundColor: 'rgba(72,187,120,0.1)',
           fill: true,
           tension: 0.1,
@@ -7897,22 +7915,34 @@ function sortClosed(key) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: (c) => `${c.parsed.y > 0 ? '+' : ''}${fmt(c.parsed.y)}` } }
+          tooltip: { 
+            callbacks: { 
+              label: (c) => {
+                const val = c.parsed.y;
+                return `${val > 0 ? '+' : ''}${fmt(val)}`;
+              }
+            } 
+          }
         },
         scales: {
           x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
-          y: { ticks: { color: '#8892a4', font: { size: 10 }, callback: v => `${v > 0 ? '+' : ''}${fmtShort(v)}` }, grid: { color: 'rgba(46, 49, 72, 0.3)' } }
+          y: { 
+            ticks: { 
+              color: '#8892a4', 
+              font: { size: 10 }, 
+              callback: (val) => `${val > 0 ? '+' : ''}${fmtShort(val)}`
+            }, 
+            grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+          }
         }
       }
     });
     
-    console.log('✅ График прибыли успешно построен!');
-    
   } catch (e) {
-    console.error('❌ Ошибка загрузки прибыли:', e);
-    canvasProfit.parentElement.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+    console.error('Ошибка загрузки прибыли:', e);
   }
 }
   function setAnalyticsSubTab(tab, btn) {
