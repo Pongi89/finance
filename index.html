@@ -6157,12 +6157,9 @@ async function renderInvestmentsAnalytics() {
     data: { labels: Object.keys(byAccount), datasets: [{ data: Object.values(byAccount), backgroundColor: COLORS.slice(0, Object.keys(byAccount).length), borderRadius: 6 }] },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmt(c.raw) } } }, scales: { x: { ticks: { color: '#8892a4', callback: v => fmtShort(v) }, grid: { color: '#2e3148' } }, y: { ticks: { color: '#e2e8f0' }, grid: { display: false } } } }
   });
-  
-  // ✅ Новая таблица: средняя цена, текущая, разница + окупаемость дивидендами
-await renderPortfolioDetailedTable();
-
-const topEl = document.getElementById('inv-top-positions');
-  // Глобальное состояние для сортировки детальной таблицы
+  // ============================================================
+// ДЕТАЛЬНАЯ ТАБЛИЦА ПОЗИЦИЙ (Глобальные переменные и функции)
+// ============================================================
 let _detailedTableData = [];
 let _detailedSortKey = null;
 let _detailedSortAsc = true;
@@ -6173,7 +6170,6 @@ async function renderPortfolioDetailedTable() {
   
   container.innerHTML = '<div class="loader">Загрузка...</div>';
   
-  // Загружаем портфель и окупаемость
   const portfolio = await loadPortfolio();
   const positions = portfolio.positions || [];
   
@@ -6185,16 +6181,13 @@ async function renderPortfolioDetailedTable() {
     console.warn('Не удалось загрузить окупаемость:', e);
   }
 
-  // Сохраняем данные в глобальную переменную для сортировки
   _detailedTableData = [...positions].map(p => ({ ...p, _coverage: coverage[p.ticker] }));
 
-  // Сортируем, если выбрана колонка
   if (_detailedSortKey) {
     _detailedTableData.sort((a, b) => {
       let va = a[_detailedSortKey] ?? 0;
       let vb = b[_detailedSortKey] ?? 0;
       
-      // Специальная логика для разных типов
       if (_detailedSortKey === 'ticker') {
         return _detailedSortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
       }
@@ -6207,7 +6200,6 @@ async function renderPortfolioDetailedTable() {
       return _detailedSortAsc ? (va - vb) : (vb - va);
     });
   } else {
-    // По умолчанию сортируем по текущей стоимости (убывание)
     _detailedTableData.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
   }
 
@@ -6216,7 +6208,6 @@ async function renderPortfolioDetailedTable() {
     return;
   }
 
-  // Функция для создания заголовка с индикатором сортировки
   const sortTh = (key, title) => {
     const isActive = _detailedSortKey === key;
     const icon = isActive ? (_detailedSortAsc ? ' ▲' : ' ▼') : ' ↕';
@@ -6236,7 +6227,7 @@ async function renderPortfolioDetailedTable() {
     sortTh('freeShares', '🎁 Бесплатных') +
     '</tr></thead><tbody>';
 
-  _detailedTableData.forEach(p => {
+   _detailedTableData.forEach(p => {
     const isCurrencyBond = p.asset_type === 'currency_bond';
     
     const avgPrice = p.avgPrice || 0;
@@ -6309,16 +6300,34 @@ async function renderPortfolioDetailedTable() {
   container.innerHTML = html;
 }
 
-// Функция сортировки
 function sortDetailedTable(key) {
   if (_detailedSortKey === key) {
     _detailedSortAsc = !_detailedSortAsc;
   } else {
     _detailedSortKey = key;
-    _detailedSortAsc = false; // По умолчанию сортируем по убыванию
+    _detailedSortAsc = false;
   }
-  
   renderPortfolioDetailedTable();
+}
+  // ✅ Новая таблица: средняя цена, текущая, разница + окупаемость дивидендами
+  // ✅ ВЫЗЫВАЕМ ДЕТАЛЬНУЮ ТАБЛИЦУ (она теперь глобальная)
+  await renderPortfolioDetailedTable();
+
+  // ✅ ТОП-10 ПОЗИЦИЙ (оставляем как было)
+  const topEl = document.getElementById('inv-top-positions');
+  const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
+  
+  if (!sorted.length) {
+    topEl.innerHTML = '<div class="empty">Нет данных</div>';
+  } else {
+    const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
+    let html = '';
+    sorted.forEach((p, i) => {
+      const share = totalValue ? (p.currentValue / totalValue * 100) : 0;
+      html += `<div class="inv-position-row" style="padding:6px 10px"><div class="inv-pos-left"><div class="inv-pos-ticker">${i + 1}. ${p.ticker} <span style="font-weight:400;color:var(--text2);font-size:11px">${p.name}</span></div></div><div class="inv-pos-right"><div class="inv-pos-value">${fmt(p.currentValue || 0)}</div><div style="font-size:11px;color:var(--text2)">${share.toFixed(1)}%</div></div></div>`;
+    });
+    topEl.innerHTML = html;
+  }
 }
   const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
   
