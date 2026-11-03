@@ -7993,87 +7993,15 @@ function drawProfitChart(data) {
   const target = document.getElementById('analytics-subtab-' + tab);
   if (target) target.style.display = 'block';
 
-  // Если открыли "Рост" — перерисовываем графики (чтобы Chart.js корректно подхватил размеры)
+  // Если открыли "Рост" — перерисовываем графики
   if (tab === 'growth') {
     renderGrowthTab();
-    renderBenchmark()(); // <-- Добавили
-    // Если у вас есть функции для перерисовки старых графиков (структуры), вызывайте их тут
-    // renderInvestmentsAnalytics(); 
+    renderBenchmark(); // <-- Исправлена опечатка (было renderBenchmark()();)
   }
   
   if (tab === 'dividends') {
     // Здесь позже вызовем renderDividendsTab();
   }
-}
-  let _currentProfitView = 'rub'; // 'rub' или 'pct'
-let _profitDataCache = null; // Чтобы не делать запрос дважды
-
-function switchProfitView(view, btn) {
-  _currentProfitView = view;
-  document.querySelectorAll('#inv-tab-analytics .card .period-row .period-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  
-  if (_profitDataCache) {
-    drawProfitChart(_profitDataCache);
-  }
-}
-
-function drawProfitChart(data) {
-  const canvasProfit = document.getElementById('chart-growth-profit');
-  if (!canvasProfit) return;
-
-  const labels = data.map(p => p.date);
-  const isPct = _currentProfitView === 'pct';
-  
-  const values = data.map(p => isPct ? (p.profitPercent || 0) : p.profit);
-
-  const ctx = canvasProfit.getContext('2d');
-  if (window._growthProfitChart) window._growthProfitChart.destroy();
-
-  window._growthProfitChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: isPct ? 'Прибыль (%)' : 'Прибыль (₽)',
-        data: values,
-        borderColor: '#48bb78',
-        backgroundColor: 'rgba(72,187,120,0.1)',
-        fill: true,
-        tension: 0.1,
-        pointRadius: 0,
-        borderWidth: 2,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: { 
-          callbacks: { 
-            label: (c) => {
-              const val = c.parsed.y;
-              if (isPct) return `${val > 0 ? '+' : ''}${val.toFixed(2)}%`;
-              return `${val > 0 ? '+' : ''}${fmt(val)}`;
-            }
-          } 
-        }
-      },
-      scales: {
-        x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
-        y: { 
-          ticks: { 
-            color: '#8892a4', 
-            font: { size: 10 }, 
-            callback: (val) => isPct ? `${val > 0 ? '+' : ''}${val}%` : `${val > 0 ? '+' : ''}${fmtShort(val)}`
-          }, 
-          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
-        }
-      }
-    }
-  });
 }
 </script>
 </body>
