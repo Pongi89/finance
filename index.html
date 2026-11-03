@@ -1173,19 +1173,54 @@ th.sortable.sorted-desc::after {
     </div>
   </div>
 
-  <!-- ============ ПОДВКЛАДКА: АНАЛИТИКА ============ -->
+   <!-- ============ ПОДВКЛАДКА: АНАЛИТИКА ============ -->
   <div id="inv-tab-analytics" class="inv-tab-content" style="display:none">
   
   <!-- Переключатель подвкладок -->
   <div class="period-row" style="margin-bottom: 16px;">
-    <button class="period-btn active" onclick="setAnalyticsSubTab('growth', this)">📈 Рост</button>
+    <button class="period-btn active" onclick="setAnalyticsSubTab('general', this)">📊 Общее</button>
+    <button class="period-btn" onclick="setAnalyticsSubTab('growth', this)">📈 Рост</button>
     <button class="period-btn" onclick="setAnalyticsSubTab('dividends', this)">💰 Дивиденды</button>
   </div>
 
-  <!-- ============ ПОДВКЛАДКА: РОСТ ============ -->
-  <div id="analytics-subtab-growth" class="analytics-subtab-content">
+  <!-- ============ ПОДВКЛАДКА: ОБЩЕЕ ============ -->
+  <div id="analytics-subtab-general" class="analytics-subtab-content">
     
-    <!-- Период (скопировано из vs Индекс) -->
+    <!-- Структура по типам активов и валютам -->
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Структура по типам активов</div>
+        <div class="chart-wrap"><canvas id="chart-inv-types"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Структура по валютам</div>
+        <div class="chart-wrap"><canvas id="chart-inv-currencies"></canvas></div>
+      </div>
+    </div>
+    
+    <!-- Структура по счетам -->
+    <div class="card">
+      <div class="card-title">Структура по счетам</div>
+      <div class="chart-wrap"><canvas id="chart-inv-accounts"></canvas></div>
+    </div>
+    
+    <!-- Детальная таблица позиций -->
+    <div class="card">
+      <div class="card-title">📊 Детальная таблица позиций</div>
+      <div id="inv-portfolio-detailed"><div class="loader">Загрузка...</div></div>
+    </div>
+
+    <!-- Топ-10 позиций -->
+    <div class="card">
+      <div class="card-title">🏆 Топ-10 позиций</div>
+      <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
+    </div>
+  </div>
+
+  <!-- ============ ПОДВКЛАДКА: РОСТ ============ -->
+  <div id="analytics-subtab-growth" class="analytics-subtab-content" style="display: none;">
+    
+    <!-- Период для Стоимости -->
     <div class="period-row">
       <button class="period-btn active" onclick="setBenchmarkPeriod('1y',this)">1 год</button>
       <button class="period-btn" onclick="setBenchmarkPeriod('3y',this)">3 года</button>
@@ -1193,14 +1228,13 @@ th.sortable.sorted-desc::after {
       <button class="period-btn" onclick="setBenchmarkPeriod('all',this)">Всё время</button>
     </div>
     
-    <!-- Выбор индекса (скопировано из vs Индекс) -->
+    <!-- Выбор индекса -->
     <div class="period-row">
       <span style="font-size:12px;color:var(--text2);margin-right:8px;line-height:32px">Индекс:</span>
       <button class="period-btn active" onclick="setBenchmarkIndex('MCFTR',this)">MCFTR (полная доходность)</button>
       <button class="period-btn" onclick="setBenchmarkIndex('IMOEX',this)">IMOEX (цена)</button>
     </div>
 
-    <!-- Плашка со статистикой -->
     <div class="stats-row" id="benchmark-stats"></div>
 
     <!-- График 1: Стоимость портфеля -->
@@ -1218,8 +1252,6 @@ th.sortable.sorted-desc::after {
           <button class="period-btn" id="btn-profit-pct" onclick="switchProfitView('pct', this)">%</button>
         </div>
       </div>
-      
-      <!-- Кнопки периода для прибыли -->
       <div class="period-row" style="margin-bottom:12px;">
         <button class="period-btn" onclick="setProfitPeriod('3m', this)">3 мес</button>
         <button class="period-btn" onclick="setProfitPeriod('6m', this)">6 мес</button>
@@ -1227,7 +1259,6 @@ th.sortable.sorted-desc::after {
         <button class="period-btn" onclick="setProfitPeriod('3y', this)">3 года</button>
         <button class="period-btn" onclick="setProfitPeriod('all', this)">Всё время</button>
       </div>
-
       <div class="stats-row" id="profit-stats"></div>
       <div class="chart-wrap-tall"><canvas id="chart-growth-profit"></canvas></div>
     </div>
@@ -1242,30 +1273,6 @@ th.sortable.sorted-desc::after {
     <div class="card">
       <div class="card-title">Прибыльность активов</div>
       <div class="chart-wrap-tall"><canvas id="chart-asset-profitability"></canvas></div>
-    </div>
-    
-    <!-- Старые графики структуры (пока оставим их здесь, чтобы не потерять) -->
-    <div class="charts-row">
-      <div class="card">
-        <div class="card-title">Структура по типам активов</div>
-        <div class="chart-wrap"><canvas id="chart-inv-types"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Структура по валютам</div>
-        <div class="chart-wrap"><canvas id="chart-inv-currencies"></canvas></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Структура по счетам</div>
-      <div class="chart-wrap"><canvas id="chart-inv-accounts"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="card-title">📊 Детальная таблица позиций</div>
-      <div id="inv-portfolio-detailed"><div class="loader">Загрузка...</div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">🏆 Топ-10 позиций</div>
-      <div id="inv-top-positions"><div class="loader">Загрузка...</div></div>
     </div>
   </div>
 
@@ -5346,13 +5353,20 @@ function setInvestmentsTab(tab, btn) {
   if (tab === 'closed') renderInvestmentsClosed();
   if (tab === 'deals') renderInvestmentsDeals();
   if (tab === 'payments') renderInvestmentsPayments();
-    if (tab === 'analytics') {
+      if (tab === 'analytics') {
+    // Сбрасываем активные кнопки подвкладок
+    document.querySelectorAll('#inv-tab-analytics > .period-row .period-btn').forEach(b => b.classList.remove('active'));
+    // Делаем "Общее" активным
+    const generalBtn = document.querySelector('#inv-tab-analytics > .period-row .period-btn');
+    if (generalBtn) generalBtn.classList.add('active');
+    
+    // Показываем "Общее"
+    document.querySelectorAll('.analytics-subtab-content').forEach(el => el.style.display = 'none');
+    const generalTab = document.getElementById('analytics-subtab-general');
+    if (generalTab) generalTab.style.display = 'block';
+    
     renderInvestmentsAnalytics();
-    renderBenchmark();
-    renderGrowthTab();
-    renderProfitDynamics();     // <-- ОБЯЗАТЕЛЬНО
-    renderAssetProfitability(); // <-- ОБЯЗАТЕЛЬНО
-}
+  }
   if (tab === 'benchmark') renderBenchmark();
   if (tab === 'add') initInvestmentsAddForm();
 }
@@ -6148,7 +6162,12 @@ async function renderInvestmentsAnalytics() {
 await renderPortfolioDetailedTable();
 
 const topEl = document.getElementById('inv-top-positions');
-  async function renderPortfolioDetailedTable() {
+  // Глобальное состояние для сортировки детальной таблицы
+let _detailedTableData = [];
+let _detailedSortKey = null;
+let _detailedSortAsc = true;
+
+async function renderPortfolioDetailedTable() {
   const container = document.getElementById('inv-portfolio-detailed');
   if (!container) return;
   
@@ -6165,66 +6184,98 @@ const topEl = document.getElementById('inv-top-positions');
   } catch(e) {
     console.warn('Не удалось загрузить окупаемость:', e);
   }
-  
-  const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
-  
-  if (!sorted.length) {
+
+  // Сохраняем данные в глобальную переменную для сортировки
+  _detailedTableData = [...positions].map(p => ({ ...p, _coverage: coverage[p.ticker] }));
+
+  // Сортируем, если выбрана колонка
+  if (_detailedSortKey) {
+    _detailedTableData.sort((a, b) => {
+      let va = a[_detailedSortKey] ?? 0;
+      let vb = b[_detailedSortKey] ?? 0;
+      
+      // Специальная логика для разных типов
+      if (_detailedSortKey === 'ticker') {
+        return _detailedSortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+      }
+      if (_detailedSortKey === 'freeShares') {
+        const fa = a._coverage?.freeShares || 0;
+        const fb = b._coverage?.freeShares || 0;
+        return _detailedSortAsc ? fa - fb : fb - fa;
+      }
+      
+      return _detailedSortAsc ? (va - vb) : (vb - va);
+    });
+  } else {
+    // По умолчанию сортируем по текущей стоимости (убывание)
+    _detailedTableData.sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0));
+  }
+
+  if (!_detailedTableData.length) {
     container.innerHTML = '<div class="empty">Нет данных</div>';
     return;
   }
-  
+
+  // Функция для создания заголовка с индикатором сортировки
+  const sortTh = (key, title) => {
+    const isActive = _detailedSortKey === key;
+    const icon = isActive ? (_detailedSortAsc ? ' ▲' : ' ▼') : ' ↕';
+    const color = isActive ? 'var(--accent)' : 'var(--text2)';
+    return `<th class="sortable" style="cursor:pointer; user-select:none; color:${color};" onclick="sortDetailedTable('${key}')">${title}${icon}</th>`;
+  };
+
   let html = '<div class="table-wrap"><table><thead><tr>' +
-  '<th>Тикер</th>' +
-  '<th>Кол-во</th>' +
-  '<th>Ср. цена</th>' +
-  '<th>Тек. цена</th>' +
-  '<th>Δ%</th>' +
-  '<th>Δ ₽</th>' +
-  '<th title="Годовая доходность (XIRR) с учётом дат покупок и выплат">📈 Годовая %</th>' +
-  '<th title="...">💰 Выплаты всего</th>' +
-  '<th title="...">🎁 Бесплатных</th>' +
-  '</tr></thead><tbody>';
-  
-  sorted.forEach(p => {
+    sortTh('ticker', 'Тикер') +
+    sortTh('quantity', 'Кол-во') +
+    sortTh('avgPrice', 'Ср. цена') +
+    sortTh('currentPrice', 'Тек. цена') +
+    sortTh('_diffPct', 'Δ%') + 
+    sortTh('_diffRub', 'Δ ₽') +
+    sortTh('xirr', '📈 Годовая %') +
+    sortTh('_allPayouts', '💰 Выплаты всего') +
+    sortTh('freeShares', '🎁 Бесплатных') +
+    '</tr></thead><tbody>';
+
+  _detailedTableData.forEach(p => {
     const isCurrencyBond = p.asset_type === 'currency_bond';
     
     const avgPrice = p.avgPrice || 0;
     const curPrice = p.currentPrice || 0;
     
     let avgPriceStr, curPriceStr, diffPctStr, diffRubStr, diffCls = '';
+    let diffPctVal = 0, diffRubVal = 0;
     
     if (isCurrencyBond) {
-      // ✅ Для валютных облигаций — Δ через рублёвую стоимость
       const totalCost = p.totalCost || 0;
       const currentValue = p.currentValue || 0;
-      const diffRub = currentValue - totalCost;
-      const diffPct = totalCost > 0 ? (diffRub / totalCost) * 100 : 0;
-      const diffSign = diffPct > 0 ? '+' : '';
+      diffRubVal = currentValue - totalCost;
+      diffPctVal = totalCost > 0 ? (diffRubVal / totalCost) * 100 : 0;
+      const diffSign = diffPctVal > 0 ? '+' : '';
       
       avgPriceStr = fmt(avgPrice);
       curPriceStr = curPrice ? curPrice.toFixed(2) + '%' : '—';
-      diffPctStr = `${diffSign}${diffPct.toFixed(2)}%`;
-      diffRubStr = `${diffSign}${fmt(diffRub)}`;
-      diffCls = diffPct > 0 ? 'c-income' : diffPct < 0 ? 'c-expense' : '';
-      
+      diffPctStr = `${diffSign}${diffPctVal.toFixed(2)}%`;
+      diffRubStr = `${diffSign}${fmt(diffRubVal)}`;
+      diffCls = diffPctVal > 0 ? 'c-income' : diffPctVal < 0 ? 'c-expense' : '';
     } else {
-      // ✅ Для остальных — как было
-      const diffPct = avgPrice > 0 ? ((curPrice - avgPrice) / avgPrice) * 100 : 0;
-      const diffRub = (curPrice - avgPrice) * (p.quantity || 0);
-      const diffSign = diffPct > 0 ? '+' : '';
+      diffPctVal = avgPrice > 0 ? ((curPrice - avgPrice) / avgPrice) * 100 : 0;
+      diffRubVal = (curPrice - avgPrice) * (p.quantity || 0);
+      const diffSign = diffPctVal > 0 ? '+' : '';
       
       avgPriceStr = fmt(avgPrice);
       curPriceStr = curPrice ? curPrice.toFixed(2) + ' ₽' : '—';
-      diffPctStr = `${diffSign}${diffPct.toFixed(2)}%`;
-      diffRubStr = `${diffSign}${fmt(diffRub)}`;
-      diffCls = diffPct > 0 ? 'c-income' : diffPct < 0 ? 'c-expense' : '';
+      diffPctStr = `${diffSign}${diffPctVal.toFixed(2)}%`;
+      diffRubStr = `${diffSign}${fmt(diffRubVal)}`;
+      diffCls = diffPctVal > 0 ? 'c-income' : diffPctVal < 0 ? 'c-expense' : '';
     }
+
+    // Добавляем виртуальные поля для сортировки
+    p._diffPct = diffPctVal;
+    p._diffRub = diffRubVal;
     
-    // Окупаемость дивидендами (только акции)
-    const cov = coverage[p.ticker];
+    const cov = p._coverage;
     let freeStr = '—';
     let freeCls = '';
-    
     if (cov) {
       if (cov.freeShares > 0) {
         freeStr = `${cov.freeShares} из ${cov.totalShares}`;
@@ -6234,32 +6285,40 @@ const topEl = document.getElementById('inv-top-positions');
       }
     }
     
-// ✅ Всего выплат за всё время: только дивиденды (акции) и купоны (облигации)
-// Амортизации НЕ считаем — это возврат номинала, не доход
-const allPayouts = (p.totalDividends || 0) + (p.totalCoupons || 0);
-const allPayoutsStr = allPayouts > 0 ? fmt(allPayouts) : '—';
-const allPayoutsCls = allPayouts > 0 ? 'c-income' : '';
+    const allPayouts = (p.totalDividends || 0) + (p.totalCoupons || 0);
+    p._allPayouts = allPayouts;
+    
+    const xirrVal = p.xirr !== null && p.xirr !== undefined ? p.xirr : null;
+    const xirrStr = xirrVal !== null ? (xirrVal >= 0 ? '+' : '') + xirrVal.toFixed(2) + '%' : '—';
+    const xirrCls = xirrVal === null ? 'c-muted' : (xirrVal > 0 ? 'c-income' : xirrVal < 0 ? 'c-expense' : '');
 
-// ✅ XIRR
-const xirrVal = p.xirr !== null && p.xirr !== undefined ? p.xirr : null;
-const xirrStr = xirrVal !== null ? (xirrVal >= 0 ? '+' : '') + xirrVal.toFixed(2) + '%' : '—';
-const xirrCls = xirrVal === null ? 'c-muted' : (xirrVal > 0 ? 'c-income' : xirrVal < 0 ? 'c-expense' : '');
-
-html += `<tr>
-  <td><strong>${p.ticker}</strong></td>
-  <td>${p.quantity}</td>
-  <td>${avgPriceStr}</td>
-  <td>${curPriceStr}</td>
-  <td class="${diffCls}" style="font-weight:600">${diffPctStr}</td>
-  <td class="${diffCls}" style="font-weight:600">${diffRubStr}</td>
-  <td class="${xirrCls}" style="font-weight:600">${xirrStr}</td>
-  <td class="${allPayoutsCls}" style="font-weight:600">${allPayoutsStr}</td>
-  <td class="${freeCls}" style="font-weight:600">${freeStr}</td>
-</tr>`;
+    html += `<tr>
+      <td><strong>${p.ticker}</strong></td>
+      <td>${p.quantity}</td>
+      <td>${avgPriceStr}</td>
+      <td>${curPriceStr}</td>
+      <td class="${diffCls}" style="font-weight:600">${diffPctStr}</td>
+      <td class="${diffCls}" style="font-weight:600">${diffRubStr}</td>
+      <td class="${xirrCls}" style="font-weight:600">${xirrStr}</td>
+      <td class="${allPayouts > 0 ? 'c-income' : ''}" style="font-weight:600">${allPayouts > 0 ? fmt(allPayouts) : '—'}</td>
+      <td class="${freeCls}" style="font-weight:600">${freeStr}</td>
+    </tr>`;
   });
-  
+
   html += '</tbody></table></div>';
   container.innerHTML = html;
+}
+
+// Функция сортировки
+function sortDetailedTable(key) {
+  if (_detailedSortKey === key) {
+    _detailedSortAsc = !_detailedSortAsc;
+  } else {
+    _detailedSortKey = key;
+    _detailedSortAsc = false; // По умолчанию сортируем по убыванию
+  }
+  
+  renderPortfolioDetailedTable();
 }
   const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
   
@@ -8225,12 +8284,18 @@ function drawProfitChart() {
   if (target) target.style.display = 'block';
 
   // Если открыли "Рост" — перерисовываем графики
-    if (tab === 'growth') {
+  if (tab === 'growth') {
     renderGrowthTab();
     renderBenchmark();
-    renderProfitDynamics(); // <-- Добавили
+    renderProfitDynamics();
     renderAssetProfitability();
   }
+  
+  // Если открыли "Общее" — рисуем структуру и таблицы
+  if (tab === 'general') {
+    renderInvestmentsAnalytics(); 
+  }
+  
   if (tab === 'dividends') {
     // Здесь позже вызовем renderDividendsTab();
   }
