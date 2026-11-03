@@ -8045,8 +8045,11 @@ function drawProfitChart() {
   });
 }
   async function renderProfitDynamics() {
+    console.log('Вызов renderProfitDynamics');
   const canvas = document.getElementById('chart-profit-dynamics');
+  console.log('Canvas найден?', !!canvas);
   if (!canvas) return;
+ 
 
   try {
     const res = await apiGet({ action: 'getMonthlyProfitData' });
@@ -8123,7 +8126,9 @@ function drawProfitChart() {
   }
 }
   async function renderAssetProfitability() {
+  console.log('Вызов renderAssetProfitability');
   const canvas = document.getElementById('chart-asset-profitability');
+  console.log('Canvas найден?', !!canvas);
   if (!canvas) return;
 
   try {
