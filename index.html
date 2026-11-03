@@ -7849,10 +7849,13 @@ function sortClosed(key) {
   }
   renderInvestmentsClosed();
 }
+ 
   async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
-  if (!canvasProfit) return;
-  
+  if (!canvasProfit) {
+     console.error('Не найден canvas chart-growth-profit');
+     return;
+  }
   const parent = canvasProfit.parentElement;
   parent.style.height = '280px';
   parent.style.width = '100%';
