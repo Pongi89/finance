@@ -1209,7 +1209,7 @@ th.sortable.sorted-desc::after {
       <div class="chart-wrap-tall"><canvas id="chart-benchmark"></canvas></div>
     </div>
 
-        <!-- График 2: Прибыль портфеля -->
+           <!-- График 2: Прибыль портфеля -->
     <div class="card">
       <div class="section-header">
         <div class="card-title" style="margin:0">Прибыль портфеля</div>
@@ -1218,6 +1218,16 @@ th.sortable.sorted-desc::after {
           <button class="period-btn" id="btn-profit-pct" onclick="switchProfitView('pct', this)">%</button>
         </div>
       </div>
+      
+      <!-- НОВЫЕ КНОПКИ ПЕРИОДА -->
+      <div class="period-row" style="margin-bottom:12px;">
+        <button class="period-btn" onclick="setProfitPeriod('3m', this)">3 мес</button>
+        <button class="period-btn" onclick="setProfitPeriod('6m', this)">6 мес</button>
+        <button class="period-btn active" onclick="setProfitPeriod('1y', this)">1 год</button>
+        <button class="period-btn" onclick="setProfitPeriod('3y', this)">3 года</button>
+        <button class="period-btn" onclick="setProfitPeriod('all', this)">Всё время</button>
+      </div>
+
       <div class="stats-row" id="profit-stats"></div>
       <div class="chart-wrap-tall"><canvas id="chart-growth-profit"></canvas></div>
     </div>
@@ -7856,8 +7866,12 @@ function sortClosed(key) {
   renderInvestmentsClosed();
 }
  
- let _currentProfitView = 'rub'; // 'rub' или 'pct'
-let _profitDataCache = null; // Чтобы не делать запрос дважды
+// ========================================================
+// ПРИБЫЛЬ ПОРТФЕЛЯ
+// ========================================================
+let _currentProfitView = 'rub';   // 'rub' или 'pct'
+let _currentProfitPeriod = '1y';  // '3m', '6m', '1y', '3y', 'all'
+let _profitDataCache = null;      // Кэш данных
 
 async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
@@ -7873,35 +7887,11 @@ async function renderGrowthTab() {
       return;
     }
 
-    // Берем последнюю точку для плашки
-    const lastPoint = data[data.length - 1];
-    const totalProfit = lastPoint.profit;
-    const profitPct = lastPoint.profitPercent || 0;
-    
-    const sign = totalProfit >= 0 ? '+' : '';
-    const colorClass = totalProfit >= 0 ? 'c-income' : 'c-expense';
-
-    // Рисуем плашку сверху (как в Snowball)
-    const statsEl = document.getElementById('profit-stats');
-    if (statsEl) {
-      statsEl.innerHTML = `
-        <div class="stat-card" style="grid-column:1/-1;background:${totalProfit >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${totalProfit >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'};padding:16px 20px">
-          <div style="font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span>🎯 Прибыль портфеля:</span>
-            <strong class="${colorClass}">${sign}${fmt(totalProfit)}</strong>
-            <strong class="${colorClass}">(${sign}${profitPct.toFixed(2)}%)</strong>
-            <span style="color:var(--text2)">за всё время</span>
-          </div>
-        </div>
-      `;
-    }
-
-    // Сохраняем данные в кэш и вызываем функцию отрисовки
+    // Сохраняем данные в кэш и вызываем отрисовку
     _profitDataCache = data;
     
-    // Находим нужную кнопку и активируем её
-    const btnId = _currentProfitView === 'pct' ? 'btn-profit-pct' : 'btn-profit-rub';
-    switchProfitView(_currentProfitView, document.getElementById(btnId));
+    const btnView = _currentProfitView === 'pct' ? 'btn-profit-pct' : 'btn-profit-rub';
+    switchProfitView(_currentProfitView, document.getElementById(btnView));
     
   } catch (e) {
     console.error('Ошибка загрузки прибыли:', e);
@@ -7912,26 +7902,87 @@ async function renderGrowthTab() {
 function switchProfitView(view, btn) {
   _currentProfitView = view;
   
-  // Переключаем активную кнопку в карточке "Прибыль портфеля"
+  // Переключаем активную кнопку ₽ / %
   const card = document.getElementById('chart-growth-profit')?.closest('.card');
   if (card) {
-    card.querySelectorAll('.period-row .period-btn').forEach(b => b.classList.remove('active'));
+    card.querySelectorAll('.section-header .period-row .period-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
   }
   
-  if (_profitDataCache) {
-    drawProfitChart(_profitDataCache);
-  }
+  if (_profitDataCache) drawProfitChart();
 }
 
-function drawProfitChart(data) {
+function setProfitPeriod(period, btn) {
+  _currentProfitPeriod = period;
+  
+  // Переключаем активную кнопку периода
+  const card = document.getElementById('chart-growth-profit')?.closest('.card');
+  if (card) {
+    // Ищем только кнопки периода (они во втором .period-row)
+    const rows = card.querySelectorAll('.period-row');
+    if (rows.length > 1) {
+      rows[1].querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    }
+    if (btn) btn.classList.add('active');
+  }
+  
+  if (_profitDataCache) drawProfitChart();
+}
+
+function drawProfitChart() {
+  const data = _profitDataCache;
+  if (!data || !data.length) return;
+
   const canvasProfit = document.getElementById('chart-growth-profit');
   if (!canvasProfit) return;
 
-  const labels = data.map(p => p.date);
-  const isPct = _currentProfitView === 'pct';
+  // --- 1. Фильтруем по периоду ---
+  const today = new Date();
+  let cutoffStr = '';
   
-  const values = data.map(p => isPct ? (p.profitPercent || 0) : p.profit);
+  if (_currentProfitPeriod === '3m') {
+    cutoffStr = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()).toISOString().substring(0, 10);
+  } else if (_currentProfitPeriod === '6m') {
+    cutoffStr = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate()).toISOString().substring(0, 10);
+  } else if (_currentProfitPeriod === '1y') {
+    cutoffStr = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()).toISOString().substring(0, 10);
+  } else if (_currentProfitPeriod === '3y') {
+    cutoffStr = new Date(today.getFullYear() - 3, today.getMonth(), today.getDate()).toISOString().substring(0, 10);
+  }
+
+  const filteredData = cutoffStr ? data.filter(p => p.date >= cutoffStr) : data;
+  
+  if (!filteredData.length) {
+    canvasProfit.parentElement.innerHTML = '<div class="empty">Нет данных за выбранный период</div>';
+    return;
+  }
+
+  // --- 2. Обновляем плашку (берем последнюю точку) ---
+  const lastPoint = filteredData[filteredData.length - 1];
+  const totalProfit = lastPoint.profit;
+  const profitPct = lastPoint.profitPercent || 0;
+  
+  const sign = totalProfit >= 0 ? '+' : '';
+  const colorClass = totalProfit >= 0 ? 'c-income' : 'c-expense';
+
+  const statsEl = document.getElementById('profit-stats');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div class="stat-card" style="grid-column:1/-1;background:${totalProfit >= 0 ? 'rgba(72,187,120,0.08)' : 'rgba(252,129,129,0.08)'};border-color:${totalProfit >= 0 ? 'rgba(72,187,120,0.3)' : 'rgba(252,129,129,0.3)'};padding:16px 20px">
+        <div style="font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span>🎯 Прибыль портфеля:</span>
+          <strong class="${colorClass}">${sign}${fmt(totalProfit)}</strong>
+          <strong class="${colorClass}">(${sign}${profitPct.toFixed(2)}%)</strong>
+          <span style="color:var(--text2)">за выбранный период</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // --- 3. Рисуем график ---
+  const labels = filteredData.map(p => p.date);
+  const isPct = _currentProfitView === 'pct';
+  const values = filteredData.map(p => isPct ? (p.profitPercent || 0) : p.profit);
 
   const ctx = canvasProfit.getContext('2d');
   if (window._growthProfitChart) window._growthProfitChart.destroy();
