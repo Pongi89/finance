@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <!-- VERSION 2 -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Финансы</title>
@@ -1210,9 +1209,16 @@ th.sortable.sorted-desc::after {
       <div class="chart-wrap-tall"><canvas id="chart-benchmark"></canvas></div>
     </div>
 
-    <!-- График 2: Прибыль портфеля -->
+        <!-- График 2: Прибыль портфеля -->
     <div class="card">
-      <div class="card-title">Прибыль портфеля</div>
+      <div class="section-header">
+        <div class="card-title" style="margin:0">Прибыль портфеля</div>
+        <div class="period-row" style="margin:0;">
+          <button class="period-btn active" id="btn-profit-rub" onclick="switchProfitView('rub', this)">₽</button>
+          <button class="period-btn" id="btn-profit-pct" onclick="switchProfitView('pct', this)">%</button>
+        </div>
+      </div>
+      <div class="stats-row" id="profit-stats"></div>
       <div class="chart-wrap-tall"><canvas id="chart-growth-profit"></canvas></div>
     </div>
     
@@ -7850,7 +7856,10 @@ function sortClosed(key) {
   renderInvestmentsClosed();
 }
  
-  async function renderGrowthTab() {
+ let _currentProfitView = 'rub'; // 'rub' или 'pct'
+let _profitDataCache = null; // Чтобы не делать запрос дважды
+
+async function renderGrowthTab() {
   const canvasProfit = document.getElementById('chart-growth-profit');
   if (!canvasProfit) return;
 
@@ -7864,14 +7873,10 @@ function sortClosed(key) {
       return;
     }
 
-    // Берем первую и последнюю точку для расчета общей прибыли
-    const firstPoint = data[0];
+    // Берем последнюю точку для плашки
     const lastPoint = data[data.length - 1];
-    
     const totalProfit = lastPoint.profit;
-    // Процент прибыли считаем от вложенных средств на конец периода
-    const totalInvested = lastPoint.invested;
-    const profitPct = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
+    const profitPct = lastPoint.profitPercent || 0;
     
     const sign = totalProfit >= 0 ? '+' : '';
     const colorClass = totalProfit >= 0 ? 'c-income' : 'c-expense';
@@ -7891,59 +7896,90 @@ function sortClosed(key) {
       `;
     }
 
-    const labels = data.map(p => p.date);
-    const profitValues = data.map(p => p.profit);
-
-    const ctx = canvasProfit.getContext('2d');
-    if (window._growthProfitChart) window._growthProfitChart.destroy();
-
-    window._growthProfitChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Прибыль',
-          data: profitValues,
-          borderColor: '#48bb78', // Зеленый
-          backgroundColor: 'rgba(72,187,120,0.1)',
-          fill: true,
-          tension: 0.1,
-          pointRadius: 0,
-          borderWidth: 2,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: { 
-            callbacks: { 
-              label: (c) => {
-                const val = c.parsed.y;
-                return `${val > 0 ? '+' : ''}${fmt(val)}`;
-              }
-            } 
-          }
-        },
-        scales: {
-          x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
-          y: { 
-            ticks: { 
-              color: '#8892a4', 
-              font: { size: 10 }, 
-              callback: (val) => `${val > 0 ? '+' : ''}${fmtShort(val)}`
-            }, 
-            grid: { color: 'rgba(46, 49, 72, 0.3)' } 
-          }
-        }
-      }
-    });
+    // Сохраняем данные в кэш и вызываем функцию отрисовки
+    _profitDataCache = data;
+    
+    // Находим нужную кнопку и активируем её
+    const btnId = _currentProfitView === 'pct' ? 'btn-profit-pct' : 'btn-profit-rub';
+    switchProfitView(_currentProfitView, document.getElementById(btnId));
     
   } catch (e) {
     console.error('Ошибка загрузки прибыли:', e);
+    canvasProfit.parentElement.innerHTML = '<div class="empty">Ошибка загрузки</div>';
   }
+}
+
+function switchProfitView(view, btn) {
+  _currentProfitView = view;
+  
+  // Переключаем активную кнопку в карточке "Прибыль портфеля"
+  const card = document.getElementById('chart-growth-profit')?.closest('.card');
+  if (card) {
+    card.querySelectorAll('.period-row .period-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+  }
+  
+  if (_profitDataCache) {
+    drawProfitChart(_profitDataCache);
+  }
+}
+
+function drawProfitChart(data) {
+  const canvasProfit = document.getElementById('chart-growth-profit');
+  if (!canvasProfit) return;
+
+  const labels = data.map(p => p.date);
+  const isPct = _currentProfitView === 'pct';
+  
+  const values = data.map(p => isPct ? (p.profitPercent || 0) : p.profit);
+
+  const ctx = canvasProfit.getContext('2d');
+  if (window._growthProfitChart) window._growthProfitChart.destroy();
+
+  window._growthProfitChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: isPct ? 'Прибыль (%)' : 'Прибыль (₽)',
+        data: values,
+        borderColor: '#48bb78',
+        backgroundColor: 'rgba(72,187,120,0.1)',
+        fill: true,
+        tension: 0.1,
+        pointRadius: 0,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { 
+          callbacks: { 
+            label: (c) => {
+              const val = c.parsed.y;
+              if (isPct) return `${val > 0 ? '+' : ''}${val.toFixed(2)}%`;
+              return `${val > 0 ? '+' : ''}${fmt(val)}`;
+            }
+          } 
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+        y: { 
+          ticks: { 
+            color: '#8892a4', 
+            font: { size: 10 }, 
+            callback: (val) => isPct ? `${val > 0 ? '+' : ''}${val}%` : `${val > 0 ? '+' : ''}${fmtShort(val)}`
+          }, 
+          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+        }
+      }
+    }
+  });
 }
   function setAnalyticsSubTab(tab, btn) {
   // Переключаем активную кнопку
@@ -7968,6 +8004,76 @@ function sortClosed(key) {
   if (tab === 'dividends') {
     // Здесь позже вызовем renderDividendsTab();
   }
+}
+  let _currentProfitView = 'rub'; // 'rub' или 'pct'
+let _profitDataCache = null; // Чтобы не делать запрос дважды
+
+function switchProfitView(view, btn) {
+  _currentProfitView = view;
+  document.querySelectorAll('#inv-tab-analytics .card .period-row .period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  
+  if (_profitDataCache) {
+    drawProfitChart(_profitDataCache);
+  }
+}
+
+function drawProfitChart(data) {
+  const canvasProfit = document.getElementById('chart-growth-profit');
+  if (!canvasProfit) return;
+
+  const labels = data.map(p => p.date);
+  const isPct = _currentProfitView === 'pct';
+  
+  const values = data.map(p => isPct ? (p.profitPercent || 0) : p.profit);
+
+  const ctx = canvasProfit.getContext('2d');
+  if (window._growthProfitChart) window._growthProfitChart.destroy();
+
+  window._growthProfitChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: isPct ? 'Прибыль (%)' : 'Прибыль (₽)',
+        data: values,
+        borderColor: '#48bb78',
+        backgroundColor: 'rgba(72,187,120,0.1)',
+        fill: true,
+        tension: 0.1,
+        pointRadius: 0,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { 
+          callbacks: { 
+            label: (c) => {
+              const val = c.parsed.y;
+              if (isPct) return `${val > 0 ? '+' : ''}${val.toFixed(2)}%`;
+              return `${val > 0 ? '+' : ''}${fmt(val)}`;
+            }
+          } 
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 12 }, grid: { display: false } },
+        y: { 
+          ticks: { 
+            color: '#8892a4', 
+            font: { size: 10 }, 
+            callback: (val) => isPct ? `${val > 0 ? '+' : ''}${val}%` : `${val > 0 ? '+' : ''}${fmtShort(val)}`
+          }, 
+          grid: { color: 'rgba(46, 49, 72, 0.3)' } 
+        }
+      }
+    }
+  });
 }
 </script>
 </body>
