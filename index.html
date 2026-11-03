@@ -1182,7 +1182,7 @@ th.sortable.sorted-desc::after {
     <button class="period-btn" onclick="setAnalyticsSubTab('dividends', this)">💰 Дивиденды</button>
   </div>
 
-    <!-- ============ ПОДВКЛАДКА: РОСТ ============ -->
+  <!-- ============ ПОДВКЛАДКА: РОСТ ============ -->
   <div id="analytics-subtab-growth" class="analytics-subtab-content">
     
     <!-- Период (скопировано из vs Индекс) -->
@@ -1209,7 +1209,7 @@ th.sortable.sorted-desc::after {
       <div class="chart-wrap-tall"><canvas id="chart-benchmark"></canvas></div>
     </div>
 
-           <!-- График 2: Прибыль портфеля -->
+    <!-- График 2: Прибыль портфеля -->
     <div class="card">
       <div class="section-header">
         <div class="card-title" style="margin:0">Прибыль портфеля</div>
@@ -1219,17 +1219,7 @@ th.sortable.sorted-desc::after {
         </div>
       </div>
       
-          <!-- График 3: Динамика прибыли -->
-    <div class="card">
-      <div class="card-title">Динамика прибыли портфеля</div>
-      <div class="chart-wrap-tall"><canvas id="chart-profit-dynamics"></canvas></div>
-    </div>
-          <!-- График 4: Прибыльность активов -->
-    <div class="card">
-      <div class="card-title">Прибыльность активов</div>
-      <div class="chart-wrap-tall"><canvas id="chart-asset-profitability"></canvas></div>
-    </div>
-      <!-- НОВЫЕ КНОПКИ ПЕРИОДА -->
+      <!-- Кнопки периода для прибыли -->
       <div class="period-row" style="margin-bottom:12px;">
         <button class="period-btn" onclick="setProfitPeriod('3m', this)">3 мес</button>
         <button class="period-btn" onclick="setProfitPeriod('6m', this)">6 мес</button>
@@ -1240,6 +1230,18 @@ th.sortable.sorted-desc::after {
 
       <div class="stats-row" id="profit-stats"></div>
       <div class="chart-wrap-tall"><canvas id="chart-growth-profit"></canvas></div>
+    </div>
+
+    <!-- График 3: Динамика прибыли -->
+    <div class="card">
+      <div class="card-title">Динамика прибыли портфеля</div>
+      <div class="chart-wrap-tall"><canvas id="chart-profit-dynamics"></canvas></div>
+    </div>
+
+    <!-- График 4: Прибыльность активов -->
+    <div class="card">
+      <div class="card-title">Прибыльность активов</div>
+      <div class="chart-wrap-tall"><canvas id="chart-asset-profitability"></canvas></div>
     </div>
     
     <!-- Старые графики структуры (пока оставим их здесь, чтобы не потерять) -->
