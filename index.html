@@ -6157,6 +6157,26 @@ async function renderInvestmentsAnalytics() {
     data: { labels: Object.keys(byAccount), datasets: [{ data: Object.values(byAccount), backgroundColor: COLORS.slice(0, Object.keys(byAccount).length), borderRadius: 6 }] },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + fmt(c.raw) } } }, scales: { x: { ticks: { color: '#8892a4', callback: v => fmtShort(v) }, grid: { color: '#2e3148' } }, y: { ticks: { color: '#e2e8f0' }, grid: { display: false } } } }
   });
+  
+  // ✅ Вызываем детальную таблицу (она теперь глобальная)
+  await renderPortfolioDetailedTable();
+  
+  // ✅ Топ-10 позиций
+  const topEl = document.getElementById('inv-top-positions');
+  const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
+  
+  if (!sorted.length) {
+    topEl.innerHTML = '<div class="empty">Нет данных</div>';
+  } else {
+    const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
+    let html = '';
+    sorted.forEach((p, i) => {
+      const share = totalValue ? (p.currentValue / totalValue * 100) : 0;
+      html += `<div class="inv-position-row" style="padding:6px 10px"><div class="inv-pos-left"><div class="inv-pos-ticker">${i + 1}. ${p.ticker} <span style="font-weight:400;color:var(--text2);font-size:11px">${p.name}</span></div></div><div class="inv-pos-right"><div class="inv-pos-value">${fmt(p.currentValue || 0)}</div><div style="font-size:11px;color:var(--text2)">${share.toFixed(1)}%</div></div></div>`;
+    });
+    topEl.innerHTML = html;
+  }
+}
   // ============================================================
 // ДЕТАЛЬНАЯ ТАБЛИЦА ПОЗИЦИЙ (Глобальные переменные и функции)
 // ============================================================
@@ -6309,41 +6329,7 @@ function sortDetailedTable(key) {
   }
   renderPortfolioDetailedTable();
 }
-  // ✅ Новая таблица: средняя цена, текущая, разница + окупаемость дивидендами
-  // ✅ ВЫЗЫВАЕМ ДЕТАЛЬНУЮ ТАБЛИЦУ (она теперь глобальная)
-  await renderPortfolioDetailedTable();
-
-  // ✅ ТОП-10 ПОЗИЦИЙ (оставляем как было)
-  const topEl = document.getElementById('inv-top-positions');
-  const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
   
-  if (!sorted.length) {
-    topEl.innerHTML = '<div class="empty">Нет данных</div>';
-  } else {
-    const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
-    let html = '';
-    sorted.forEach((p, i) => {
-      const share = totalValue ? (p.currentValue / totalValue * 100) : 0;
-      html += `<div class="inv-position-row" style="padding:6px 10px"><div class="inv-pos-left"><div class="inv-pos-ticker">${i + 1}. ${p.ticker} <span style="font-weight:400;color:var(--text2);font-size:11px">${p.name}</span></div></div><div class="inv-pos-right"><div class="inv-pos-value">${fmt(p.currentValue || 0)}</div><div style="font-size:11px;color:var(--text2)">${share.toFixed(1)}%</div></div></div>`;
-    });
-    topEl.innerHTML = html;
-  }
-}
-  const sorted = [...positions].sort((a, b) => (b.currentValue || 0) - (a.currentValue || 0)).slice(0, 10);
-  
-  if (!sorted.length) {
-    topEl.innerHTML = '<div class="empty">Нет данных</div>';
-  } else {
-    const totalValue = positions.reduce((s, p) => s + (p.currentValue || 0), 0);
-    let html = '';
-    sorted.forEach((p, i) => {
-      const share = totalValue ? (p.currentValue / totalValue * 100) : 0;
-      html += `<div class="inv-position-row" style="padding:6px 10px"><div class="inv-pos-left"><div class="inv-pos-ticker">${i + 1}. ${p.ticker} <span style="font-weight:400;color:var(--text2);font-size:11px">${p.name}</span></div></div><div class="inv-pos-right"><div class="inv-pos-value">${fmt(p.currentValue || 0)}</div><div style="font-size:11px;color:var(--text2)">${share.toFixed(1)}%</div></div></div>`;
-    });
-    topEl.innerHTML = html;
-  }
-}
-
 async function initInvestmentsAddForm() {
   const today = localDateStr(new Date());
   const dateInput = document.getElementById('inv-input-date');
