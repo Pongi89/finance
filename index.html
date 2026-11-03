@@ -5347,9 +5347,11 @@ function setInvestmentsTab(tab, btn) {
   if (tab === 'deals') renderInvestmentsDeals();
   if (tab === 'payments') renderInvestmentsPayments();
     if (tab === 'analytics') {
-  renderInvestmentsAnalytics();
-  renderBenchmark(); // <-- Добавили
-  renderGrowthTab();   // <-- Добавили
+    renderInvestmentsAnalytics();
+    renderBenchmark();
+    renderGrowthTab();
+    renderProfitDynamics();     // <-- ОБЯЗАТЕЛЬНО
+    renderAssetProfitability(); // <-- ОБЯЗАТЕЛЬНО
 }
   if (tab === 'benchmark') renderBenchmark();
   if (tab === 'add') initInvestmentsAddForm();
@@ -8049,7 +8051,9 @@ function drawProfitChart() {
   const canvas = document.getElementById('chart-profit-dynamics');
   console.log('Canvas найден?', !!canvas);
   if (!canvas) return;
- 
+ // ПРИНУДИТЕЛЬНЫЙ РАЗМЕР
+  canvas.parentElement.style.height = '280px';
+  canvas.parentElement.style.width = '100%';
 
   try {
     const res = await apiGet({ action: 'getMonthlyProfitData' });
@@ -8130,7 +8134,9 @@ function drawProfitChart() {
   const canvas = document.getElementById('chart-asset-profitability');
   console.log('Canvas найден?', !!canvas);
   if (!canvas) return;
-
+// ПРИНУДИТЕЛЬНЫЙ РАЗМЕР
+  canvas.parentElement.style.height = '280px';
+  canvas.parentElement.style.width = '100%';
   try {
     const portfolio = await loadPortfolio();
     const positions = portfolio.positions || [];
